@@ -1,4 +1,4 @@
-[Reading 1000 lines from start (total: 1575 lines, 575 remaining)]
+[Reading 1000 lines from start (total: 1578 lines, 578 remaining)]
 
 <!DOCTYPE html>
 <html lang="ja">
@@ -24,6 +24,7 @@
     .catch(function () {});
 </script>
 <title>Y++</title>
+<script>if(new URLSearchParams(location.search).get('embed') === '1') document.documentElement.classList.add('yplus-embedded');</script>
 <style>
   :root {
     --bg: #14111c; --panel: #1f1a2b; --line: #352d47; --text: #f3eefc; --sub: #a99cc4;
@@ -267,6 +268,7 @@
   .admin-head h2 { font-size: 15px; }
   .admin-sec h3 { font-size: 13px; }
 </style>
+<link rel="stylesheet" href="embed.css">
 </head>
 <body>
 <div class="layout">
@@ -998,7 +1000,5 @@
 
   // ---- 挨拶(アクセス中の端末として表示するため)----
   async function hello() {
-    await hwReady;
-    try {
 
 [executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
