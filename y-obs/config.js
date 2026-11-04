@@ -1,5 +1,3 @@
-[Reading 14 lines from start (total: 14 lines, 0 remaining)]
-
 // Y-OBS ページ設定(ページ上には表示されません)
 window.YOBS_CONFIG = {
   // 配信サーバーの映像の場所(VPSのセットアップ後に設定)
@@ -14,5 +12,3 @@ window.YOBS_CONFIG = {
   // Android 版 REALITY のパッケージ名
   realityPackage: 'net.wrightflyer.le.reality',
 };
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
