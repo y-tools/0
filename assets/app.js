@@ -1,4 +1,4 @@
-[Reading 297 lines from start (total: 297 lines, 0 remaining)]
+[Reading 308 lines from start (total: 308 lines, 0 remaining)]
 
 'use strict';
 
@@ -292,6 +292,17 @@
   window.addEventListener('pagehide', () => {
     state.token = '';
     $('pinInput').value = '';
+  });
+  // Resize the embedded Y-OBS panel to its contents rather than nesting
+  // a second scrolling webpage in the main portal.
+  const embeddedYobs = $('yobsFrame');
+  window.addEventListener('message', event => {
+    if (event.source !== embeddedYobs.contentWindow ||
+        event.origin !== window.location.origin ||
+        event.data?.type !== 'yplus:yobs:height') return;
+    const height = Number(event.data.height);
+    if (!Number.isFinite(height) || height < 250 || height > 2200) return;
+    embeddedYobs.style.height = Math.ceil(height) + 'px';
   });
   $('copyrightYear').textContent = String(new Date().getFullYear());
   ensureDevice();
