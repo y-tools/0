@@ -1,0 +1,80 @@
+[Reading 76 lines from start (total: 76 lines, 0 remaining)]
+
+{
+  "version": 1,
+  "portalName": "Y++",
+  "eyebrow": "Y++ TOOLS / PORTAL",
+  "hero": {
+    "kicker": "ONE PLACE. MANY POSSIBILITIES.",
+    "title": "創る、つなぐ、楽しむ。",
+    "description": "配信も、制作も、ちょっとした実験も。Y++のツールが集まるホーム。"
+  },
+  "menu": [
+    {
+      "id": "yobs",
+      "title": "Y-OBS",
+      "subtitle": "配信を見る",
+      "icon": "monitor-play",
+      "href": "#y-obs",
+      "status": "ready"
+    },
+    {
+      "id": "clipsync",
+      "title": "ClipSync",
+      "subtitle": "デバイス連携",
+      "icon": "link",
+      "href": "",
+      "status": "soon"
+    },
+    {
+      "id": "testtool",
+      "title": "Test Tool",
+      "subtitle": "便利ツール",
+      "icon": "sparkles",
+      "href": "",
+      "status": "soon"
+    },
+    {
+      "id": "gacha",
+      "title": "ガチャ",
+      "subtitle": "抽選・企画",
+      "icon": "dice",
+      "href": "",
+      "status": "soon"
+    },
+    {
+      "id": "creator",
+      "title": "制作",
+      "subtitle": "クリエイティブ",
+      "icon": "layers",
+      "href": "",
+      "status": "soon"
+    },
+    {
+      "id": "more",
+      "title": "OTHER",
+      "subtitle": "追加予定",
+      "icon": "grid",
+      "href": "",
+      "status": "soon"
+    }
+  ],
+  "profile": {
+    "displayName": "Y++",
+    "handle": "CREATOR / STREAMING TOOLS",
+    "statement": "やりたいことを、使えるカタチに。",
+    "description": "配信をもっと自由に。制作をもっと楽しく。ここは、試して、作って、育ててきたツールをひとつにまとめる場所です。",
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/y-tools"
+      }
+    ]
+  },
+  "auth": {
+    "apiBase": "https://153-127-64-17.sslip.io/api",
+    "note": "Y-OBSと同じ管理用暗証番号を使用します。3回間違えるとアクセス禁止になる設定です。"
+  }
+}
+
+[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
