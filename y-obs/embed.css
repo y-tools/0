@@ -1,5 +1,3 @@
-[Reading 185 lines from start (total: 185 lines, 0 remaining)]
-
 /* Y++ portal-only skin. The standalone Y-OBS page keeps its original styling. */
 html.yplus-embedded {
   --bg:#151c29;
@@ -185,5 +183,3 @@ html.yplus-embedded body.admin-on .layout {display:block!important;max-width:non
 @media(prefers-reduced-motion:reduce){
   .yplus-embedded * {animation:none!important;transition:none!important}
 }
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
