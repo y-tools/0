@@ -101,6 +101,7 @@
       a.rel = 'noopener noreferrer';
       root.append(a);
     });
+    document.dispatchEvent(new CustomEvent('yplus:profile-base', {detail: c}));
   }
 
   function openDrawer() {
