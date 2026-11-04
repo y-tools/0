@@ -234,11 +234,19 @@
     $('profilePin').value='';state.token='';state.tap=0;setStatus('');
   }
   function setup(){
-    $('profileTap').addEventListener('click',()=>{
+    const profileTap = () => {
       const now=Date.now();
       if(now-state.lastTap>6000)state.tap=0;
       state.lastTap=now;
       if(++state.tap>=10){state.tap=0;openEditor();}
+    };
+    $('profileTap').addEventListener('click',profileTap);
+    $('profileTitle').setAttribute('role','button');
+    $('profileTitle').setAttribute('tabindex','0');
+    $('profileTitle').setAttribute('aria-label','プロフィール');
+    $('profileTitle').addEventListener('click',profileTap);
+    $('profileTitle').addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();profileTap();}
     });
     $('profileEditorClose').addEventListener('click',closeEditor);
     $('profileEditorDialog').addEventListener('close',()=>{state.tap=0;state.token='';});
