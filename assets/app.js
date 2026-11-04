@@ -1,5 +1,3 @@
-[Reading 308 lines from start (total: 308 lines, 0 remaining)]
-
 'use strict';
 
 (() => {
@@ -308,5 +306,3 @@
   ensureDevice();
   loadConfig();
 })();
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
