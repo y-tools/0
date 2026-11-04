@@ -1,5 +1,3 @@
-[Reading 39 lines from start (total: 39 lines, 0 remaining)]
-
 # Y++ — Tools Portal
 
 スマートフォン向けのY++ツール集約ホームページです。
@@ -39,5 +37,3 @@ iPhoneのPiPはSafari単独ページでの利用を推奨します。
 - 管理メニューでツール項目の追加・削除・並び替え・タイトル変更
 - プロフィール編集・画像アップロード・公開設定の安全な保存API
 - メニューのリンク先・独自ドメインの調整
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
