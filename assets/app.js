@@ -291,16 +291,35 @@
     state.token = '';
     $('pinInput').value = '';
   });
-  // Resize the embedded Y-OBS panel to its contents rather than nesting
-  // a second scrolling webpage in the main portal.
+  // The player remains mounted even when offline, so its stream watcher
+  // can notify us when the broadcaster starts without requiring a reload.
   const embeddedYobs = $('yobsFrame');
+  const streamCard = $('streamCard');
+  const streamOfflineText = $('streamOfflineText');
+  let embeddedHeight = 620;
   window.addEventListener('message', event => {
     if (event.source !== embeddedYobs.contentWindow ||
         event.origin !== window.location.origin ||
-        event.data?.type !== 'yplus:yobs:height') return;
-    const height = Number(event.data.height);
-    if (!Number.isFinite(height) || height < 250 || height > 2200) return;
-    embeddedYobs.style.height = Math.ceil(height) + 'px';
+        !event.data || typeof event.data !== 'object') return;
+    if (event.data.type === 'yplus:yobs:status') {
+      const status = event.data.live;
+      if (status !== true && status !== false && status !== null) return;
+      streamCard.classList.toggle('is-live', status === true);
+      streamCard.classList.toggle('is-offline', status === false);
+      streamCard.classList.toggle('is-pending', status === null);
+      streamOfflineText.textContent = status === false
+        ? '現在配信なし' : '配信状況を確認中';
+      if (status === true) embeddedYobs.style.height = embeddedHeight + 'px';
+      return;
+    }
+    if (event.data.type === 'yplus:yobs:height') {
+      const height = Number(event.data.height);
+      if (!Number.isFinite(height) || height < 250 || height > 6000) return;
+      embeddedHeight = Math.ceil(height);
+      if (streamCard.classList.contains('is-live')) {
+        embeddedYobs.style.height = embeddedHeight + 'px';
+      }
+    }
   });
   $('copyrightYear').textContent = String(new Date().getFullYear());
   ensureDevice();
