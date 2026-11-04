@@ -848,6 +848,10 @@
     try {
       const r = await fetch(countUrl, { cache: 'no-store' });
       const d = await r.json();
+      if (document.documentElement.classList.contains('yplus-embedded') &&
+          window.parent !== window && typeof d.live === 'boolean') {
+        window.parent.postMessage({type:'yplus:yobs:status',live:d.live}, location.origin);
+      }
       $('viewersText').textContent = d.viewers;
       $('viewers').hidden = !d.live;
       const t = d.live ? (d.title || '') : '';
