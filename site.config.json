@@ -1,5 +1,3 @@
-[Reading 76 lines from start (total: 76 lines, 0 remaining)]
-
 {
   "version": 1,
   "portalName": "Y++",
@@ -76,5 +74,3 @@
     "note": "Y-OBSと同じ管理用暗証番号を使用します。3回間違えるとアクセス禁止になる設定です。"
   }
 }
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
