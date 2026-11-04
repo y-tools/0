@@ -1,0 +1,126 @@
+[Reading 122 lines from start (total: 122 lines, 0 remaining)]
+
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f18">
+  <meta name="description" content="Y++ — 配信・制作・便利ツールが集まるポータル">
+  <meta name="color-scheme" content="dark">
+  <title>Y++ | Tools Portal</title>
+  <link rel="stylesheet" href="./assets/styles.css">
+  <script defer src="./assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">コンテンツへ移動</a>
+  <div class="site-shell">
+    <header class="header" id="top">
+      <div class="header-inner">
+        <button class="brand" id="brandButton" type="button" aria-label="Y++ ホーム" title="Y++">
+          <span class="brand-mark">Y<span class="brand-plus">++</span></span>
+        </button>
+        <span class="header-caption" aria-hidden="true">TOOLS / STUDIO</span>
+        <button id="menuButton" class="menu-button" type="button" aria-controls="drawer" aria-expanded="false" aria-label="メニューを開く">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+    <nav class="drawer" id="drawer" aria-label="メインメニュー" aria-hidden="true" inert>
+      <div class="drawer-heading">
+        <div><div class="eyebrow">NAVIGATION</div><strong>MENU</strong></div>
+        <button id="menuClose" class="icon-close" aria-label="メニューを閉じる" type="button">×</button>
+      </div>
+      <div class="drawer-links" id="drawerLinks"></div>
+      <div class="drawer-footer"><span class="tiny-star">✳</span> EXPLORE Y++</div>
+    </nav>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="heroTitle">
+        <div class="hero-inner">
+          <div class="hero-label"><span class="small-spark">✦</span><span id="heroEyebrow">Y++ TOOLS / PORTAL</span></div>
+          <div class="hero-number" aria-hidden="true">01 / HOME</div>
+          <h1 id="heroTitle">創る、<br><em>つなぐ、</em>楽しむ。</h1>
+          <p id="heroDescription">配信も、制作も、ちょっとした実験も。Y++のツールが集まるホーム。</p>
+          <a class="hero-jump" href="#tools">ツールを見る <span aria-hidden="true">↗</span></a>
+          <div class="hero-orbit" aria-hidden="true"><span>Y++</span></div>
+        </div>
+      </section>
+
+      <section class="section tools-section" id="tools" aria-labelledby="toolsTitle">
+        <div class="section-top">
+          <div><div class="eyebrow"><span class="index">01</span> EXPLORE</div><h2 id="toolsTitle">TOOLS<span class="title-dot">.</span></h2></div>
+          <span class="section-aside">WHAT'S INSIDE</span>
+        </div>
+        <p class="section-copy">使いたいツールを選んでね。</p>
+        <div class="tool-grid" id="toolGrid" aria-label="ツール一覧"></div>
+      </section>
+
+      <section class="section yobs-section" id="y-obs" aria-labelledby="yobsTitle">
+        <div class="section-top">
+          <div><div class="eyebrow"><span class="index">02</span> STREAMING</div><h2 id="yobsTitle">Y-OBS<span class="title-dot">.</span></h2></div>
+          <span class="live-indicator"><span></span> STREAM VIEWER</span>
+        </div>
+        <p class="section-copy">配信映像をここからチェック。ミニプレイヤーを使うときは単独ページで開いてね。</p>
+        <div class="stream-card">
+          <div class="stream-topbar"><span class="stream-dot"></span><span class="stream-name">Y++ / STREAM MONITOR</span><span class="stream-label">EMBEDDED VIEW</span></div>
+          <iframe id="yobsFrame" class="stream-frame" title="Y-OBS 配信ビューアー" src="./y-obs/index.html" loading="lazy" allow="autoplay; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <div class="stream-footer">
+            <div><strong>Y-OBS Viewer</strong><span>配信映像・コメント・ミニプレイヤー</span></div>
+            <a href="./y-obs/index.html" id="openYobs" class="open-player" target="_blank" rel="noopener noreferrer">単独で開く <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <p class="stream-note"><span aria-hidden="true">ⓘ</span> iPhoneのピクチャー・イン・ピクチャーはSafariの単独ページでの利用を推奨します。</p>
+      </section>
+
+      <section class="section profile-section" id="profile" aria-labelledby="profileTitle">
+        <div class="section-top">
+          <div><div class="eyebrow"><span class="index">03</span> ABOUT</div><h2 id="profileTitle">PROFILE<span class="title-dot">.</span></h2></div>
+          <span class="section-aside">MEET THE CREATOR</span>
+        </div>
+        <div class="profile-card">
+          <div class="profile-art" aria-hidden="true"><div class="profile-emblem">Y<span>++</span></div><div class="art-cross">+</div></div>
+          <div class="profile-content">
+            <div class="profile-kicker" id="profileHandle">CREATOR / STREAMING TOOLS</div>
+            <h3 id="profileName">Y++</h3>
+            <p class="profile-statement" id="profileStatement">やりたいことを、使えるカタチに。</p>
+            <p class="profile-description" id="profileDescription">配信をもっと自由に。制作をもっと楽しく。</p>
+            <div id="profileLinks" class="profile-links"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="#top" class="footer-brand">Y<span>++</span></a>
+      <div><span>MADE TO CREATE.</span><small>© <span id="copyrightYear"></span> Y++</small></div>
+      <a class="footer-top" href="#top">TOP ↑</a>
+    </footer>
+  </div>
+
+  <dialog id="adminDialog" class="admin-dialog" aria-labelledby="adminTitle">
+    <div class="admin-head">
+      <div><div class="eyebrow">Y++ / PRIVATE</div><h2 id="adminTitle">SETTINGS<span class="title-dot">.</span></h2></div>
+      <button type="button" id="adminClose" class="icon-close" aria-label="設定を閉じる">×</button>
+    </div>
+    <form id="pinForm" autocomplete="off">
+      <p class="admin-copy">Y-OBSと同じ管理用暗証番号で認証します。</p>
+      <label for="pinInput">管理用暗証番号</label>
+      <input id="pinInput" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" required placeholder="PIN" maxlength="20">
+      <button type="submit" class="admin-submit">認証して開く <span aria-hidden="true">→</span></button>
+      <p class="admin-hint">認証に3回失敗すると、Y-OBS側でアクセスが禁止される設定です。</p>
+    </form>
+    <div id="adminPanel" hidden>
+      <div class="admin-success">✓ 管理者認証済み</div>
+      <p class="admin-copy">メニュー・プロフィール編集は次の段階で追加予定です。現在は設定内容を確認できます。</p>
+      <div id="adminPreview" class="admin-preview"></div>
+      <button id="adminLogout" class="admin-logout" type="button">ログアウト</button>
+    </div>
+    <p class="admin-error" id="adminError" role="alert" aria-live="polite"></p>
+  </dialog>
+</body>
+</html>
+
+[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
