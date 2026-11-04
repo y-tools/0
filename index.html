@@ -8,7 +8,9 @@
   <meta name="color-scheme" content="dark">
   <title>Y++ | Tools Portal</title>
   <link rel="stylesheet" href="./assets/styles.css">
+  <link rel="stylesheet" href="./assets/profile.css">
   <script defer src="./assets/app.js"></script>
+  <script defer src="./assets/profile.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">コンテンツへ移動</a>
@@ -77,13 +79,14 @@
           <div><div class="eyebrow"><span class="index">03</span> ABOUT</div><h2 id="profileTitle">PROFILE<span class="title-dot">.</span></h2></div>
           <span class="section-aside">MEET THE CREATOR</span>
         </div>
-        <div class="profile-card">
-          <div class="profile-art" aria-hidden="true"><div class="profile-emblem">Y<span>++</span></div><div class="art-cross">+</div></div>
+        <div class="profile-card text-only-profile">
+          
           <div class="profile-content">
             <div class="profile-kicker" id="profileHandle">CREATOR / STREAMING TOOLS</div>
-            <h3 id="profileName">Y++</h3>
+            <button id="profileTap" class="profile-tap" type="button" aria-label="プロフィールを表示"><span id="profileName">Y++</span></button>
             <p class="profile-statement" id="profileStatement">やりたいことを、使えるカタチに。</p>
             <p class="profile-description" id="profileDescription">配信をもっと自由に。制作をもっと楽しく。</p>
+            <div id="profileBlocks" class="profile-blocks"></div>
             <div id="profileLinks" class="profile-links"></div>
           </div>
         </div>
@@ -96,6 +99,55 @@
       <a class="footer-top" href="#top">TOP ↑</a>
     </footer>
   </div>
+
+  <dialog id="profileEditorDialog" class="profile-editor-dialog" aria-labelledby="profileEditorHeading">
+    <div class="profile-editor-head">
+      <div><div class="eyebrow">Y++ / PROFILE</div><h2 id="profileEditorHeading">プロフィール編集</h2></div>
+      <button type="button" id="profileEditorClose" class="icon-close" aria-label="閉じる">×</button>
+    </div>
+    <form id="profileLoginForm" class="profile-login-form">
+      <p>Y-OBSと同じ管理用暗証番号で認証してください。</p>
+      <label for="profilePin">管理用暗証番号</label>
+      <input id="profilePin" type="password" inputmode="numeric" maxlength="20" autocomplete="off" required>
+      <button class="profile-primary" type="submit">認証して編集を開く</button>
+      <small>暗証番号を連続で誤ると、サーバー側でアクセスが禁止されます。</small>
+    </form>
+    <div id="profileEditorWorkspace" hidden>
+      <div class="profile-editor-grid">
+        <section class="editor-pane editor-preview-pane">
+          <h3>01 / プレビュー</h3>
+          <div id="profileEditorPreview" class="editor-preview"></div>
+        </section>
+        <section class="editor-pane">
+          <h3>02 / 基本情報</h3>
+          <label for="editProfileName">表示名</label>
+          <input id="editProfileName" maxlength="70">
+          <label for="editProfileStatement">ひとこと</label>
+          <input id="editProfileStatement" maxlength="160">
+          <label for="editProfileDescription">プロフィール本文</label>
+          <textarea id="editProfileDescription" maxlength="1000" rows="4"></textarea>
+        </section>
+        <section class="editor-pane">
+          <h3>03 / 週間イベントスケジュール</h3>
+          <p class="editor-hint">タイトルと予定をセットで登録。曜日ごとに改行できます。</p>
+          <div id="weeklyEditorBlocks" class="editor-block-list"></div>
+          <button type="button" id="addWeeklyBlock" class="profile-secondary">＋ 週間イベントスケジュールを追加</button>
+        </section>
+        <section class="editor-pane">
+          <h3>04 / 基本ブロック</h3>
+          <p class="editor-hint">自己紹介・お知らせなど、好きなタイトルと内容を追加できます。</p>
+          <div id="basicEditorBlocks" class="editor-block-list"></div>
+          <button type="button" id="addBasicBlock" class="profile-secondary">＋ 基本ブロックを追加</button>
+        </section>
+      </div>
+      <div class="profile-editor-footer">
+        <p id="profileStorageHint" class="editor-hint"></p>
+        <button type="button" id="profileSave" class="profile-primary">プロフィールを保存</button>
+        <button type="button" id="profileExport" class="profile-secondary">JSONを書き出す</button>
+      </div>
+    </div>
+    <p id="profileEditorStatus" class="profile-editor-status" role="status" aria-live="polite"></p>
+  </dialog>
 
   <dialog id="adminDialog" class="admin-dialog" aria-labelledby="adminTitle">
     <div class="admin-head">
