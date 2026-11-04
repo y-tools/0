@@ -1,0 +1,189 @@
+[Reading 185 lines from start (total: 185 lines, 0 remaining)]
+
+/* Y++ portal-only skin. The standalone Y-OBS page keeps its original styling. */
+html.yplus-embedded {
+  --bg:#151c29;
+  --panel:#1a2533;
+  --line:#303a4b;
+  --text:#f2f0eb;
+  --sub:#9eacbc;
+  --accent:#dabb99;
+  --accent2:#b99571;
+  --ok:#a1d7b9;
+  --warn:#d5bd86;
+  --ng:#e7a3a1;
+  background:#151c29;
+}
+html.yplus-embedded body {
+  margin:0;
+  padding:0 !important;
+  background:#151c29;
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  overflow-x:hidden;
+}
+.yplus-embedded .layout,
+.yplus-embedded .wrap {
+  display:block;
+  width:100%;
+  max-width:none;
+  margin:0;
+  min-width:0;
+}
+.yplus-embedded .wrap > header {
+  margin:0;
+  min-height:43px;
+  padding:9px 14px;
+  border-bottom:1px solid #ffffff18;
+  background:#1c2634;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.yplus-embedded .wrap > header::before {
+  content:"LIVE PREVIEW";
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:1.8px;
+  color:#c9b093;
+}
+.yplus-embedded .wrap > header h1 {display:none}
+.yplus-embedded .pills {justify-content:flex-end;flex-wrap:wrap}
+.yplus-embedded .pill {
+  border:1px solid #ffffff22;
+  background:#222e3d;
+  color:#bdc5d1;
+  font-size:10px;
+  padding:4px 9px;
+}
+.yplus-embedded .pill.live .dot {background:#9fd6b4}
+.yplus-embedded .screen {
+  border:0;
+  border-radius:0;
+  width:100%;
+  background:#05080d;
+  aspect-ratio:16/9;
+}
+.yplus-embedded .screen video {background:#05080d}
+.yplus-embedded .overlay {background:#030509a8;color:#bec6d2;font-size:13px}
+.yplus-embedded .stitle {
+  margin:0;
+  padding:12px 15px;
+  border:0;
+  border-radius:0;
+  background:#26303f;
+  font-size:14px;
+  color:#f3e9da;
+}
+.yplus-embedded .btns {
+  display:grid;
+  gap:9px;
+  margin:0;
+  padding:14px 14px 10px;
+}
+.yplus-embedded button,
+.yplus-embedded .btn {
+  border-radius:11px;
+  font-size:12px;
+  font-weight:700;
+  transition:filter .15s ease;
+}
+.yplus-embedded button:focus-visible,
+.yplus-embedded input:focus-visible,
+.yplus-embedded textarea:focus-visible {
+  outline:2px solid #e4c9a8;
+  outline-offset:2px;
+}
+.yplus-embedded button:hover {filter:brightness(1.08)}
+.yplus-embedded .primary {
+  color:#18202a;
+  background:linear-gradient(135deg,#e3c7a8,#c2a17f);
+  padding:12px 10px;
+  font-size:13px;
+  border:1px solid #e5c8a3;
+}
+.yplus-embedded .primary.fs {
+  color:#e8e9ed;
+  background:#2b3546;
+  font-size:12px;
+  border:1px solid #3e485b;
+  padding:12px 8px;
+}
+.yplus-embedded .primary.back {background:#9fcdb6}
+.yplus-embedded .secondary,
+.yplus-embedded .os {
+  background:#232e3e;
+  color:#e4e5e9;
+  border:1px solid #374456;
+}
+.yplus-embedded .mainrow {grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}
+.yplus-embedded .mainrow,.yplus-embedded .row2 {gap:8px}
+.yplus-embedded .row2 button {padding:10px 5px;font-size:12px}
+.yplus-embedded .volrow {
+  display:flex;
+  padding:7px 12px;
+  background:#202a3a;
+  border:1px solid #303a4b;
+  border-radius:10px;
+  min-width:0;
+}
+.yplus-embedded .volrow input {accent-color:#d2ad8d;min-width:0}
+.yplus-embedded .vollabel,.yplus-embedded .voltext {font-size:11px}
+.yplus-embedded .volios {font-size:11px}
+.yplus-embedded .cform {
+  position:relative;
+  display:grid;
+  gap:8px;
+  margin:7px 0 0;
+  padding:15px 0 0;
+  background:transparent;
+  border:0;
+  border-top:1px solid #ffffff1b;
+  border-radius:0;
+}
+.yplus-embedded .cform::before {
+  content:"COMMENT";
+  display:block;
+  color:#d3b491;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:1.8px;
+  margin-bottom:1px;
+}
+.yplus-embedded .cform input,
+.yplus-embedded .cform textarea,
+.yplus-embedded .modal input {
+  background:#0f1723;
+  border:1px solid #3c4558;
+  border-radius:10px;
+  color:#f0f2f5;
+  font-size:16px;
+}
+.yplus-embedded .cform textarea {resize:vertical;min-height:52px}
+.yplus-embedded .cform input::placeholder,
+.yplus-embedded .cform textarea::placeholder {color:#8895a8}
+.yplus-embedded .secondary.namebtn {padding:0 13px}
+.yplus-embedded .primary.small {font-size:12px;padding:11px}
+.yplus-embedded .cnote {color:#8996aa;font-size:10px}
+.yplus-embedded .msg {margin:0;padding:0 14px 11px;font-size:11px}
+.yplus-embedded .openbox {display:none!important}
+.yplus-embedded .age-declined {margin:0 14px 10px}
+html.yplus-embedded body.admin-on .layout {display:block!important;max-width:none!important}
+.yplus-embedded #admin,.yplus-embedded #adminComments {display:none!important}
+.yplus-embedded .modal-box {
+  background:#1b2634;
+  border-color:#414d5f;
+  color:#f1f2f5;
+}
+.yplus-embedded .homehint {background:#0a1019ee}
+.yplus-embedded .ban {background:#0b1019}
+@media(max-width:360px){
+  .yplus-embedded .btns{padding:11px 10px 9px}
+  .yplus-embedded .wrap > header{padding:8px 10px}
+  .yplus-embedded .mainrow,.yplus-embedded .row2{gap:6px}
+}
+@media(prefers-reduced-motion:reduce){
+  .yplus-embedded * {animation:none!important;transition:none!important}
+}
+
+[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
