@@ -245,6 +245,11 @@
     $('profileTitle').setAttribute('tabindex','0');
     $('profileTitle').setAttribute('aria-label','プロフィール');
     $('profileTitle').addEventListener('click',profileTap);
+    document.querySelector('.text-only-profile')?.addEventListener('click',e=>{
+      if(e.target.closest('a,button') && !e.target.closest('#profileTap'))return;
+      if(e.target.closest('#profileTap'))return;
+      profileTap();
+    });
     $('profileTitle').addEventListener('keydown',e=>{
       if(e.key==='Enter'||e.key===' '){e.preventDefault();profileTap();}
     });
