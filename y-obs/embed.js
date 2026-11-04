@@ -1,5 +1,3 @@
-[Reading 34 lines from start (total: 34 lines, 0 remaining)]
-
 'use strict';
 // Only active in ?embed=1. This alters presentation, never streaming/auth logic.
 (() => {
@@ -34,5 +32,3 @@
   document.fonts?.ready.then(schedule).catch(()=>{});
   schedule();
 })();
-
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
