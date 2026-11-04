@@ -61,16 +61,15 @@
           <div><div class="eyebrow"><span class="index">02</span> STREAMING</div><h2 id="yobsTitle">Y-OBS<span class="title-dot">.</span></h2></div>
           <span class="live-indicator"><span></span> STREAM VIEWER</span>
         </div>
-        <p class="section-copy">配信映像をここからチェック。ミニプレイヤーを使うときは単独ページで開いてね。</p>
-        <div class="stream-card">
+        <p class="section-copy">配信中は映像と操作画面を表示。配信がないときはコンパクトにお知らせします。</p>
+        <div class="stream-card is-pending" id="streamCard">
           <div class="stream-topbar"><span class="stream-dot"></span><span class="stream-name">Y++ / STREAM MONITOR</span><span class="stream-label">EMBEDDED VIEW</span></div>
-          <iframe id="yobsFrame" class="stream-frame" title="Y-OBS 配信ビューアー" src="./y-obs/index.html?embed=1" loading="lazy" allow="autoplay; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-          <div class="stream-footer">
-            <div><strong>Y-OBS Viewer</strong><span>配信映像・コメント・ミニプレイヤー</span></div>
-            <a href="./y-obs/index.html" id="openYobs" class="open-player" target="_blank" rel="noopener noreferrer">単独で開く <span aria-hidden="true">↗</span></a>
+          <iframe id="yobsFrame" class="stream-frame" title="Y-OBS 配信ビューアー" src="./y-obs/index.html?embed=1" loading="eager" scrolling="no" allow="autoplay; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <div class="stream-offline" id="streamOffline" role="status" aria-live="polite">
+            <span class="stream-offline-dot" aria-hidden="true"></span>
+            <span id="streamOfflineText">配信状況を確認中</span>
           </div>
         </div>
-        <p class="stream-note"><span aria-hidden="true">ⓘ</span> iPhoneのピクチャー・イン・ピクチャーはSafariの単独ページでの利用を推奨します。</p>
       </section>
 
       <section class="section profile-section" id="profile" aria-labelledby="profileTitle">
