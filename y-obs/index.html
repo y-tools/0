@@ -1,5 +1,3 @@
-[Reading 1000 lines from start (total: 1578 lines, 578 remaining)]
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1000,5 +998,581 @@
 
   // ---- 挨拶(アクセス中の端末として表示するため)----
   async function hello() {
+    await hwReady;
+    try {
+      const v = $('video');
+      const r = await post('/hello', { device, hw, tab, name: store.get('yobs.name'), viewing: !!(v && !v.paused) });
+      if (r.data && r.data.banned) showBan();
+    } catch {}
+  }
+  hello();
+  setInterval(() => { if (document.visibilityState === 'visible') hello(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') hello(); });
 
-[executed on device: hiratayuusukenoMacBook-Air.local (348dc674-ae2f-4808-9160-3521fd911771)]
+  // ---- 名前の登録(ブラウザに保存) ----
+  let nameMsgTimer = null;
+  function saveName() {
+    const name = $('cName').value.trim();
+    store.set('yobs.name', name);
+    $('nameMsg').textContent = name ? 'ブラウザに保存しました' : '名前を消しました';
+    $('nameMsg').hidden = false;
+    clearTimeout(nameMsgTimer);
+    nameMsgTimer = setTimeout(() => { $('nameMsg').hidden = true; }, 2000);
+    hello();
+  }
+  $('nameSave').addEventListener('click', saveName);
+  $('cName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveName(); } });
+
+  // ---- コメント送信 ----
+  $('commentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('cName').value.trim();
+    const text = $('cText').value.trim();
+    if (!text) { $('cMsg').textContent = 'コメントを入力してください'; return; }
+    if (name) store.set('yobs.name', name);   // 名前はこのブラウザに保存
+    $('cSend').disabled = true;
+    try {
+      const r = await post('/comment', { device, hw, name, text });
+      if (r.ok) { $('cText').value = ''; $('cMsg').textContent = '送信しました'; }
+      else { $('cMsg').textContent = (r.data && r.data.error) || '送信できませんでした'; if (r.status === 403) showBan(); }
+    } catch { $('cMsg').textContent = '送信できませんでした'; }
+    $('cSend').disabled = false;
+    setTimeout(() => { $('cMsg').textContent = ''; }, 3000);
+  });
+
+  // ---- タイトルを5回連続タップでログイン画面 ----
+  const title = document.querySelector('header h1');
+  title.classList.add('tap');
+  let taps = 0, tapTimer = null;
+  title.addEventListener('click', () => {
+    taps++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { taps = 0; }, 1500);
+    if (taps >= 5) { taps = 0; openLogin(); }
+  });
+
+  function openLogin() {
+    if (token) return;
+    $('loginMsg').textContent = '';
+    $('pin').value = '';
+    $('loginModal').hidden = false;
+    setTimeout(() => $('pin').focus(), 50);
+  }
+  $('loginCancel').addEventListener('click', () => { $('loginModal').hidden = true; });
+  $('pin').addEventListener('input', () => { $('pin').value = $('pin').value.replace(/\D/g, ''); });
+  $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+  $('loginGo').addEventListener('click', login);
+
+  let token = '';
+  try { token = sessionStorage.getItem('yobs.token') || ''; } catch {}
+
+  async function login() {
+    const pin = $('pin').value;
+    if (!pin) return;
+    $('loginGo').disabled = true;
+    try {
+      const r = await post('/login', { device, pin });
+      if (r.ok && r.data.token) {
+        token = r.data.token;
+        try { sessionStorage.setItem('yobs.token', token); } catch {}
+        $('loginModal').hidden = true;
+        startAdmin();
+      } else {
+        $('loginMsg').textContent = (r.data && r.data.error) || 'ログインできませんでした';
+        $('pin').value = '';
+        if (r.status === 403) { $('loginModal').hidden = true; showBan(); }
+      }
+    } catch { $('loginMsg').textContent = 'サーバーにつながりません'; }
+    $('loginGo').disabled = false;
+  }
+
+  // ---- 管理画面 ----
+  let adminTimer = null, lastTopTs = 0, lastMuteSig = '';
+
+  // ---- ミュート ----
+  async function setMute(dev, on, name) {
+    if (on && !confirm(`「${name || '名無し'}」の端末をミュートしますか?\nこの端末からのコメントは記録されなくなります。`)) return;
+    try { await post('/admin/mute', { device: dev, on }, token); } catch {}
+    refresh();
+  }
+  function renderMutes(ms) {
+    $('muteCount').textContent = ms.length;
+    const box = $('muteList');
+    box.textContent = '';
+    if (!ms.length) { box.append(el('div', 'muted note', 'ミュート中の端末はありません')); return; }
+    for (const m of ms) {
+      const row = el('div', 'mute-row');
+      const b = el('button', 'c-mute', '解除');
+      b.addEventListener('click', () => setMute(m.device, false));
+      row.append(el('span', 'grow', `${m.name || '名無し'}  ${m.label || ''}  ${m.ip || ''}`), b);
+      box.append(row);
+    }
+  }
+  function startAdmin() {
+    // 配信者本人には年齢制限の確認を出さない(出ていたら閉じて再生)
+    if (!$('ageGate').hidden) { $('ageGate').hidden = true; $('ageDeclined').hidden = true; $('reload').click(); }
+    document.body.classList.add('admin-on');
+    $('admin').hidden = false;
+    $('adminComments').hidden = false;
+    refresh();
+    clearInterval(adminTimer);
+    adminTimer = setInterval(refresh, 2000);
+  }
+  function stopAdmin() {
+    clearInterval(adminTimer);
+    token = '';
+    try { sessionStorage.removeItem('yobs.token'); } catch {}
+    document.body.classList.remove('admin-on');
+    $('admin').hidden = true;
+    $('adminComments').hidden = true;
+  }
+  $('adminLogout').addEventListener('click', async () => {
+    try { await post('/admin/logout', {}, token); } catch {}
+    stopAdmin();
+  });
+
+  // ---- 年齢制限(R18) ----
+  let ratingEditing = false;
+  for (const id of ['ratingOn', 'ratingText']) {
+    $(id).addEventListener('focus', () => { ratingEditing = true; });
+    $(id).addEventListener('blur', () => { setTimeout(() => { ratingEditing = false; }, 300); });
+  }
+  $('ratingOn').addEventListener('change', () => { ratingEditing = true; });
+  $('ratingSave').addEventListener('click', async () => {
+    const r = await post('/admin/rating', { on: $('ratingOn').checked, text: $('ratingText').value.trim() }, token).catch(() => null);
+    ratingEditing = false;
+    $('ratingMsg').textContent = r && r.ok
+      ? (r.data.rating.on ? '🔞 年齢制限をオンにしました。視聴者には再生前に確認が出ます。' : '年齢制限をオフにしました。')
+      : '保存できませんでした';
+  });
+
+  // ---- 配信タイトル ----
+  let titleEditing = false;
+  $('titleInput').addEventListener('focus', () => { titleEditing = true; });
+  $('titleInput').addEventListener('blur', () => { titleEditing = false; });
+  async function setTitle(title) {
+    const r = await post('/admin/title', { title }, token).catch(() => null);
+    if (r && r.ok) {
+      $('titleInput').value = r.data.title;
+      $('titleMsg').textContent = r.data.title ? '設定しました(配信中だけ表示されます)' : 'タイトルを消しました';
+    } else {
+      $('titleMsg').textContent = '設定できませんでした';
+    }
+  }
+  $('titleSave').addEventListener('click', () => setTitle($('titleInput').value.trim()));
+  $('titleClear').addEventListener('click', () => setTitle(''));
+  $('titleInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') setTitle($('titleInput').value.trim()); });
+
+  const fmtTime = (ts) => new Date(ts * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fmtDate = (ts) => new Date(ts * 1000).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  // 表示数: 1 画面なら「1」、複数なら「3(Safari×2, LINE内ブラウザ×1)」
+  function tabCell(c) {
+    const n = c.tabs || 0;
+    const td = el('td', 'wrap' + (n > 1 ? ' multi' : ''));
+    const parts = Object.entries(c.tab_detail || {}).map(([b, k]) => `${b}×${k}`);
+    td.textContent = n > 1 ? `${n}(${parts.join(', ')})` : String(n || '—');
+    return td;
+  }
+
+  // ---- 端末の詳細ポップアップ ----
+  function openDetail(c) {
+    const box = $('detailBody');
+    box.textContent = '';
+    const dl = el('dl', 'dl');
+    const add = (k, v, mono) => { dl.append(el('dt', '', k)); dl.append(el('dd', mono ? 'mono' : '', v)); };
+    add('名前', c.names.join(', ') || '—');
+    add('端末', c.os);
+    add('ブラウザ', c.browsers.join(', '));
+    add('IPアドレス', (c.ips || [c.ip]).join(', '), true);
+    add('端末番号', c.key, true);
+    add('表示数', String(c.tabs || 0));
+    add('最初のアクセス', fmtDate(c.first));
+    add('最後の通信', `${c.ago}秒前`);
+    box.append(dl);
+    for (const it of c.items) {
+      const card = el('div', 'dcard');
+      card.append(el('div', 'dcard-h', `${it.browser}${it.muted ? '(ミュート中)' : ''}`));
+      const d2 = el('dl', 'dl');
+      const add2 = (k, v, mono) => { d2.append(el('dt', '', k)); d2.append(el('dd', mono ? 'mono' : '', v)); };
+      add2('ブラウザID', it.device, true);
+      add2('名前', it.name || '—');
+      add2('名前の履歴', (it.names_hist || []).join(', ') || '—');
+      add2('今のIP', it.ip || '—', true);
+      add2('IPの履歴', (it.ips_hist || []).join(', ') || '—', true);
+      add2('表示数', String(it.tabs));
+      add2('状態', it.viewing ? '視聴中' : '表示中');
+      add2('最初', fmtDate(it.first));
+      add2('ブラウザ情報', it.ua, true);
+      add2('年齢制限の同意', (it.consents || []).length ? it.consents.map((c) => fmtDate(c.ts)).join(', ') : '—');
+      card.append(d2);
+      box.append(card);
+    }
+    box.append(el('p', 'muted note', '※MACアドレス・端末名はブラウザから取得できないため表示できません。同じ端末キーで「同じ時間に同じIP」または「同じ名前を登録」したブラウザを同じ端末として結びつけ、以後ずっと同じ端末として扱います。'));
+    $('detailModal').hidden = false;
+  }
+  $('detailClose').addEventListener('click', () => { $('detailModal').hidden = true; });
+  $('detailModal').addEventListener('click', (e) => { if (e.target === $('detailModal')) $('detailModal').hidden = true; });
+
+  // ================= 訪問履歴 =================
+  async function apiGet(path) {
+    const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+    if (r.status === 401) { stopAdmin(); throw new Error('401'); }
+    return r.json();
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmtDur = (sec) => {
+    sec = Math.max(0, Math.round(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    return h ? `${h}時間${m}分` : m ? `${m}分${s}秒` : `${s}秒`;
+  };
+  const fmtHM = (ts) => { const d = new Date(ts * 1000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const fmtMDHM = (ts) => { const d = new Date(ts * 1000); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+  let hMode = 'day', hDevice = null;
+  let hCursor = new Date();
+  function hRange() {
+    const d = hCursor;
+    const from = hMode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : new Date(d.getFullYear(), d.getMonth(), 1);
+    const to = hMode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1) : new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    return [from.getTime() / 1000, to.getTime() / 1000];
+  }
+  function hSyncInputs() {
+    const d = hCursor;
+    $('hDate').value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    $('hMon').value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    $('hDate').hidden = hMode !== 'day';
+    $('hMon').hidden = hMode !== 'month';
+    $('hDay').classList.toggle('on', hMode === 'day');
+    $('hMonth').classList.toggle('on', hMode === 'month');
+    $('hAll').hidden = !hDevice;
+  }
+  function openHistory(device) {
+    hDevice = device || null;
+    $('histModal').hidden = false;
+    loadHistory();
+  }
+  $('histOpen').addEventListener('click', () => openHistory(null));
+  $('histClose').addEventListener('click', () => { $('histModal').hidden = true; });
+  $('hDay').addEventListener('click', () => { hMode = 'day'; loadHistory(); });
+  $('hMonth').addEventListener('click', () => { hMode = 'month'; loadHistory(); });
+  $('hAll').addEventListener('click', () => { hDevice = null; loadHistory(); });
+  $('hPrev').addEventListener('click', () => { hShift(-1); });
+  $('hNext').addEventListener('click', () => { hShift(1); });
+  function hShift(k) {
+    const d = hCursor;
+    hCursor = hMode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate() + k) : new Date(d.getFullYear(), d.getMonth() + k, 1);
+    loadHistory();
+  }
+  $('hDate').addEventListener('change', () => { if ($('hDate').value) { const [y, m, dd] = $('hDate').value.split('-').map(Number); hCursor = new Date(y, m - 1, dd); loadHistory(); } });
+  $('hMon').addEventListener('change', () => { if ($('hMon').value) { const [y, m] = $('hMon').value.split('-').map(Number); hCursor = new Date(y, m - 1, 1); loadHistory(); } });
+
+  // 履歴から端末の詳細を開く(今つながっていない端末も記録から表示)
+  function openHistDetail(g) {
+    const box = $('detailBody');
+    box.textContent = '';
+    const dl = el('dl', 'dl');
+    const add = (k, v, mono) => { dl.append(el('dt', '', k)); dl.append(el('dd', mono ? 'mono' : '', v)); };
+    add('名前', g.names.join(', ') || '—');
+    add('端末', g.labels.join(', ') || '—');
+    add('IPアドレス', (g.ips || []).join(', ') || '—', true);
+    add('端末番号', g.key, true);
+    add('最初のアクセス', g.first ? fmtDate(g.first) : '—');
+    add('最後の訪問', fmtDate(g.last) + (g.online ? '(滞在中)' : ''));
+    add('この期間', `訪問 ${g.count}回 / 滞在 ${fmtDur(g.total)} / コメント ${g.comments}件`);
+    box.append(dl);
+    for (const it of g.members || []) {
+      const card = el('div', 'dcard');
+      card.append(el('div', 'dcard-h', `${it.browser || 'ブラウザ'}${it.muted ? '(ミュート中)' : ''}`));
+      const d2 = el('dl', 'dl');
+      const add2 = (k, v, mono) => { d2.append(el('dt', '', k)); d2.append(el('dd', mono ? 'mono' : '', v)); };
+      add2('ブラウザID', it.device, true);
+      add2('名前の履歴', (it.names_hist || []).join(', ') || '—');
+      add2('IPの履歴', (it.ips_hist || []).join(', ') || '—', true);
+      add2('最初', it.first ? fmtDate(it.first) : '—');
+      add2('最後', it.last ? fmtDate(it.last) : '—');
+      add2('ブラウザ情報', it.ua || '—', true);
+      add2('年齢制限の同意', (it.consents || []).length ? it.consents.map((c) => `${fmtDate(c.ts)}(${c.ip})`).join(', ') : '—');
+      card.append(d2);
+      box.append(card);
+    }
+    box.append(el('p', 'muted note', '※MACアドレス・端末名はブラウザから取得できないため表示できません。'));
+    $('detailModal').hidden = false;
+  }
+
+  async function loadHistory() {
+    hSyncInputs();
+    const [from, to] = hRange();
+    const body = $('histBody');
+    body.textContent = '読み込み中…';
+    let d;
+    try { d = await apiGet(`/admin/visits?from=${from}&to=${to}` + (hDevice ? `&device=${encodeURIComponent(hDevice)}` : '')); }
+    catch { body.textContent = '読み込めませんでした'; return; }
+    const groups = d.groups || [];
+    body.textContent = '';
+    const period = hMode === 'day' ? `${hCursor.getMonth() + 1}月${hCursor.getDate()}日` : `${hCursor.getFullYear()}年${hCursor.getMonth() + 1}月`;
+
+    if (!hDevice) {
+      // ---- 全端末の一覧 ----
+      $('histTitle').textContent = `訪問履歴(${period})`;
+      const tv = groups.reduce((a, g) => a + g.count, 0), tc = groups.reduce((a, g) => a + g.comments, 0);
+      $('histSum').innerHTML = '';
+      $('histSum').append(document.createTextNode('端末 '), el('b', '', String(groups.length)), document.createTextNode(' 台 / 訪問 '),
+        el('b', '', String(tv)), document.createTextNode(' 回 / コメント '), el('b', '', String(tc)), document.createTextNode(' 件(行を押すと詳しく見られます)'));
+      if (!groups.length) { body.append(el('p', 'muted', 'この期間の訪問はありません')); return; }
+      const t = el('table', 'htable');
+      const head = el('tr');
+      for (const h of ['名前', '端末', '訪問回数', '滞在合計', 'コメント', '最後の訪問', '']) head.append(el('th', '', h));
+      t.append(el('thead')); t.tHead.append(head);
+      const tb = el('tbody'); t.append(tb);
+      for (const g of groups) {
+        const tr = el('tr', 'click');
+        const last = el('td'); last.textContent = fmtMDHM(g.last);
+        if (g.online) last.append(el('span', 'live-dot', ' ●滞在中'));
+        tr.append(el('td', 'wrap', g.names.join(', ') || '—'), el('td', 'wrap', g.labels.join(', ') || '—'),
+          el('td', '', g.count + '回'), el('td', '', fmtDur(g.total)), el('td', '', g.comments + '件'), last);
+        const db = el('button', 'c-mute', '詳細');
+        db.addEventListener('click', (e) => { e.stopPropagation(); openHistDetail(g); });
+        const tdb = el('td'); tdb.append(db); tr.append(tdb);
+        tr.addEventListener('click', () => { hDevice = g.root; loadHistory(); });
+        tb.append(tr);
+      }
+      body.append(t);
+      return;
+    }
+
+    // ---- 1台の詳細 ----
+    const g = groups[0];
+    $('histTitle').textContent = `訪問履歴(${period})`;
+    $('histSum').innerHTML = '';
+    if (!g) { body.append(el('p', 'muted', 'この期間の訪問はありません')); return; }
+    $('histSum').append(el('b', '', g.names.join(', ') || '名前なし'), document.createTextNode(`  ${g.labels.join(', ')}  端末番号 ${g.key}  ／  訪問 `),
+      el('b', '', g.count + '回'), document.createTextNode(' / 滞在合計 '), el('b', '', fmtDur(g.total)),
+      document.createTextNode(' / コメント '), el('b', '', g.comments + '件'));
+    const db = el('button', 'c-mute', '端末の詳細');
+    db.addEventListener('click', () => openHistDetail(g));
+    $('histSum').append(document.createTextNode('  '), db);
+    const t = el('table', 'htable');
+    const head = el('tr');
+    for (const h of ['入室', '退室', '滞在時間', 'コメント', 'ブラウザ']) head.append(el('th', '', h));
+    t.append(el('thead')); t.tHead.append(head);
+    const tb = el('tbody'); t.append(tb);
+    for (const v of g.visits) {
+      const tr = el('tr');
+      const out = el('td');
+      if (v.open && Date.now() / 1000 - v.end <= 180) out.append(el('span', 'live-dot', '滞在中'));
+      else out.textContent = hMode === 'day' ? fmtHM(v.end) : fmtMDHM(v.end);
+      tr.append(el('td', '', hMode === 'day' ? fmtHM(v.start) : fmtMDHM(v.start)), out,
+        el('td', '', fmtDur(v.duration)), el('td', '', v.comments + '件'), el('td', '', v.browser || '—'));
+      tb.append(tr);
+    }
+    body.append(t);
+    body.append(el('p', 'muted note', '※ページからの通信が3分途切れると退室として記録します。iPhoneでミニプレイヤーにしてREALITYへ戻ると、その時点で退室扱いになることがあります。'));
+  }
+
+  // ================= 配信分析 =================
+  $('streamOpen').addEventListener('click', () => { $('streamModal').hidden = false; loadStreams(); });
+  $('stClose').addEventListener('click', () => { $('streamModal').hidden = true; });
+  $('stBack').addEventListener('click', loadStreams);
+
+  async function loadStreams() {
+    $('stBack').hidden = true;
+    $('stTitle').textContent = '配信分析';
+    const body = $('stBody');
+    body.textContent = '読み込み中…';
+    let d;
+    try { d = await apiGet('/admin/streams'); } catch { body.textContent = '読み込めませんでした'; return; }
+    body.textContent = '';
+    const list = d.streams || [];
+    if (!list.length) { body.append(el('p', 'muted', 'まだ配信の記録がありません。OBSで配信すると自動で記録されます。')); return; }
+    const t = el('table', 'htable');
+    const head = el('tr');
+    for (const h of ['開始', 'タイトル', '配信時間', '最大視聴者', 'コメント', 'つけ直し']) head.append(el('th', '', h));
+    t.append(el('thead')); t.tHead.append(head);
+    const tb = el('tbody'); t.append(tb);
+    for (const s of list) {
+      const tr = el('tr', 'click');
+      const start = el('td'); start.textContent = fmtMDHM(s.start);
+      if (s.live) start.append(el('span', 'live-dot', ' ●配信中'));
+      tr.append(start, el('td', 'wrap', s.title || '(タイトルなし)'), el('td', '', fmtDur(s.duration)),
+        el('td', '', s.peak + '人'), el('td', '', s.comments + '件'), el('td', '', s.restarts ? s.restarts + '回' : '—'));
+      tr.addEventListener('click', () => loadStream(s.id));
+      tb.append(tr);
+    }
+    body.append(t);
+    body.append(el('p', 'muted note', '※配信終了から1時間以内につけ直した場合は、同じ配信として記録しています。'));
+  }
+
+  async function loadStream(id) {
+    $('stBack').hidden = false;
+    const body = $('stBody');
+    body.textContent = '読み込み中…';
+    let s;
+    try { s = await apiGet('/admin/stream?id=' + encodeURIComponent(id)); } catch { body.textContent = '読み込めませんでした'; return; }
+    body.textContent = '';
+    $('stTitle').textContent = s.title || '(タイトルなし)';
+
+    // 1分ごとのデータ(配信していない時間は gap)
+    const now = Date.now() / 1000;
+    const endT = s.end || now;
+    const total = Math.max(1, Math.ceil((endT - s.start) / 60));
+    const inSeg = (m) => s.segments.some(([a, b]) => { const t = s.start + m * 60 + 30; return t >= a - 30 && t <= (b || now) + 30; });
+    let mins = [];
+    for (let m = 0; m < total; m++) {
+      const b = s.buckets[String(m)];
+      mins.push({ m, gap: !inSeg(m), v: b && b.n ? b.vsum / b.n : 0, vmax: b ? b.vmax : 0, c: b ? b.c : 0 });
+    }
+    // 長い配信は 5 分ごとにまとめる
+    const step = total > 240 ? 5 : 1;
+    const cells = [];
+    for (let i = 0; i < mins.length; i += step) {
+      const g = mins.slice(i, i + step);
+      const on = g.filter((x) => !x.gap);
+      cells.push({ m: i, gap: !on.length, v: on.length ? on.reduce((a, x) => a + x.v, 0) / on.length : 0,
+        vmax: Math.max(0, ...g.map((x) => x.vmax)), c: g.reduce((a, x) => a + x.c, 0) });
+    }
+    const vMax = Math.max(1, ...cells.map((x) => x.v)), cMax = Math.max(1, ...cells.map((x) => x.c));
+    for (const x of cells) x.score = x.gap ? 0 : 0.5 * (x.v / vMax) + 0.5 * (x.c / cMax);
+
+    const sum = el('div', 'hsum');
+    sum.append(document.createTextNode(`${fmtMDHM(s.start)} 開始 ／ 配信時間 `), el('b', '', fmtDur(s.duration)),
+      document.createTextNode(' ／ 最大視聴者 '), el('b', '', s.peak + '人'), document.createTextNode(' ／ コメント '),
+      el('b', '', s.comments + '件'), document.createTextNode(s.restarts ? ` ／ つけ直し ${s.restarts}回` : ''));
+    body.append(sum);
+
+    const heat = el('div', 'heat');
+    const colors = { v: [124, 92, 255], c: [255, 111, 174], score: [255, 179, 71] };
+    const row = (label, key, val) => {
+      heat.append(el('div', 'heat-label', label));
+      const r = el('div', 'heat-row');
+      for (const x of cells) {
+        const cell = el('div', 'heat-cell' + (x.gap ? ' gap' : ''));
+        if (!x.gap) {
+          const k = val(x);
+          const [R, G, B] = colors[key];
+          cell.style.background = `rgba(${R},${G},${B},${0.08 + 0.92 * k})`;
+        }
+        const t = s.start + x.m * 60;
+        cell.title = x.gap ? `${fmtHM(t)} 配信していない時間` :
+          `${fmtHM(t)}${step > 1 ? '〜' + fmtHM(t + step * 60) : ''}  視聴者 ${Math.round(x.v * 10) / 10}人(最大${x.vmax})/ コメント ${x.c}件`;
+        r.append(cell);
+      }
+      heat.append(r);
+    };
+    row('視聴者数', 'v', (x) => x.v / vMax);
+    row('コメント', 'c', (x) => x.c / cMax);
+    row('盛り上がり', 'score', (x) => x.score);
+    // 時間の目盛り
+    heat.append(el('div'));
+    const axis = el('div', 'heat-axis');
+    const every = cells.length > 120 ? 12 : cells.length > 60 ? 6 : cells.length > 20 ? 5 : 1;
+    cells.forEach((x, i) => {
+      if (i % every) return;
+      const sp = el('span', '', fmtHM(s.start + x.m * 60));
+      sp.style.left = `${(i + 0.5) / cells.length * 100}%`;
+      axis.append(sp);
+    });
+    heat.append(axis);
+    body.append(heat);
+
+    const legend = el('div', 'legend');
+    const lg = (rgb, t) => { const s2 = el('span'); const i = el('i'); i.style.background = `rgb(${rgb})`; s2.append(i, document.createTextNode(t)); return s2; };
+    legend.append(lg('124,92,255', '視聴者数(1分平均)'), lg('255,111,174', 'コメント数'), lg('255,179,71', '盛り上がり = 視聴者とコメントの合計(色が濃いほど多い)'),
+      el('span', '', '斜線 = 配信していない時間'));
+    body.append(legend);
+
+    // 盛り上がった時間 TOP3
+    const tops = cells.map((x, i) => ({ ...x, i })).filter((x) => !x.gap && x.score > 0)
+      .sort((a, b) => b.score - a.score).slice(0, 3);
+    body.append(el('h3', '', '盛り上がった時間'));
+    const box = el('div', 'tops');
+    if (!tops.length) box.append(el('p', 'muted', 'まだデータがありません'));
+    tops.forEach((x, k) => {
+      const t = s.start + x.m * 60;
+      const it = el('div', 'top-item');
+      it.append(el('span', 'top-rank', `${k + 1}位`), el('b', '', `${fmtHM(t)}〜${fmtHM(t + step * 60)}`),
+        el('span', 'muted', `視聴者 ${Math.round(x.v * 10) / 10}人 / コメント ${x.c}件`));
+      box.append(it);
+    });
+    body.append(box);
+  }
+
+  async function refresh() {
+    if (!token) return;
+    let d;
+    try {
+      const r = await fetch(API + '/admin/state', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      if (r.status === 401) { stopAdmin(); return; }
+      d = await r.json();
+    } catch { return; }
+
+    // 年齢制限(入力中は上書きしない)
+    if (d.rating && !ratingEditing) {
+      $('ratingOn').checked = d.rating.on;
+      if ($('ratingText').value !== d.rating.text) $('ratingText').value = d.rating.text;
+    }
+
+    // 配信タイトル(入力中は上書きしない)
+    if (!titleEditing && $('titleInput').value !== (d.title || '')) $('titleInput').value = d.title || '';
+
+    // 端末一覧
+    $('clientCount').textContent = d.clients.length;
+    $('countDetail').textContent = d.count ? `映像の視聴: ${d.count.viewers}人` : '';
+    const rows = $('clientRows');
+    rows.textContent = '';
+    for (const c of d.clients) {
+      const tr = el('tr');
+      const detail = el('button', 'c-mute', '詳細');
+      detail.addEventListener('click', () => openDetail(c));
+      const hist = el('button', 'c-mute', '履歴');
+      hist.addEventListener('click', () => openHistory(c.root));
+      const tdBtn = el('td', 'btns2'); tdBtn.append(detail, hist);
+      tr.append(
+        el('td', 'wrap', c.names.join(', ') || '—'),
+        el('td', '', c.os),
+        tabCell(c),
+        el('td', '', c.ago <= 35 ? (c.viewing ? '視聴中' : '表示中') : `${c.ago}秒前`),
+        tdBtn,
+      );
+      rows.append(tr);
+    }
+
+    // コメント(新しい順)
+    $('commentCount').textContent = d.comments.length;
+    const list = $('commentList');
+    const topTs = d.comments.length ? d.comments[0].ts : 0;
+    const muteSig = (d.mutes || []).map((m) => m.device).join(',');
+    renderMutes(d.mutes || []);
+    if (topTs !== lastTopTs || muteSig !== lastMuteSig) {
+      const isFirst = lastTopTs === 0;
+      const onlyMute = topTs === lastTopTs;
+      lastMuteSig = muteSig;
+      const keepScroll = list.scrollTop;
+      list.textContent = '';
+      for (const c of d.comments) {
+        const item = el('div', 'c-item' + (!isFirst && c.ts > lastTopTs ? ' new' : '') + (c.muted ? ' muted' : ''));
+        const head = el('div', 'c-head');
+        head.append(el('span', 'c-name', c.name), el('span', 'c-time', fmtDate(c.ts)));
+        if (c.muted) head.append(el('span', 'c-tag', 'ミュート中'));
+        const mb = el('button', 'c-mute' + (c.muted ? ' on' : ''), c.muted ? 'ミュート解除' : '🔇 ミュート');
+        mb.addEventListener('click', () => setMute(c.device, !c.muted, c.name));
+        head.append(mb);
+        const meta = el('div', 'c-meta');
+        meta.append(document.createTextNode(c.label + ' / 端末番号 '), el('span', 'mono', c.gkey || c.device.slice(0, 8)),
+          document.createTextNode(' / IP '), el('span', 'mono', c.ip));
+        item.append(head, el('div', 'c-text', c.text), meta);
+        list.append(item);
+      }
+      lastTopTs = topTs;
+      if (onlyMute) list.scrollTop = keepScroll;   // ミュート操作だけならスクロール位置はそのまま
+      else list.scrollTo({ top: 0, behavior: isFirst ? 'auto' : 'smooth' });  // 新しいコメントへ自動スクロール
+    }
+  }
+
+  if (token) startAdmin();
+})();
+</script>
+<script src="embed.js" defer></script>
+</body>
+</html>
