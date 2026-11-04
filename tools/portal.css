@@ -52,3 +52,9 @@ body.portal-tool .order-panel{padding:15px 10px}
 body.portal-tool .tool-overlay h1{font-size:clamp(23px,7vw,34px)}
 body.portal-tool .streamcalc-row{padding:10px;gap:8px;font-size:12px}
 }
+
+body.portal-order .order-panel{display:flex;flex-direction:column;gap:12px;aspect-ratio:auto;height:auto;min-height:0}
+body.portal-order .comment-tools{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid #374456}
+body.portal-order .comment-btn-row{display:flex;flex-wrap:wrap;gap:8px}
+body.portal-order .comment-btn-row button{flex:1 1 130px;min-height:42px}
+body.portal-order .comment-tools input{background:#111b2a;border:1px solid #405068;border-radius:9px;padding:9px;color:#f5f1e9;width:100%}
