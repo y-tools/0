@@ -9,52 +9,68 @@
   },
   "menu": [
     {
-      "id": "yobs",
-      "title": "Y-OBS",
-      "subtitle": "配信を見る",
+      "id": "obs",
+      "title": "OBS",
+      "subtitle": "準備中",
       "icon": "monitor-play",
-      "href": "#y-obs",
-      "status": "ready"
-    },
-    {
-      "id": "clipsync",
-      "title": "ClipSync",
-      "subtitle": "デバイス連携",
-      "icon": "link",
       "href": "",
       "status": "soon"
     },
     {
-      "id": "testtool",
-      "title": "Test Tool",
-      "subtitle": "便利ツール",
+      "id": "role",
+      "title": "役職ガチャ",
+      "subtitle": "準備中",
       "icon": "sparkles",
       "href": "",
       "status": "soon"
     },
     {
-      "id": "gacha",
-      "title": "ガチャ",
-      "subtitle": "抽選・企画",
+      "id": "timer",
+      "title": "タイマー",
+      "subtitle": "カウントダウン統合",
+      "icon": "clock",
+      "href": "./tools/?tool=timer",
+      "status": "ready"
+    },
+    {
+      "id": "order",
+      "title": "順序整理",
+      "subtitle": "参加者を管理",
+      "icon": "list-ordered",
+      "href": "./tools/?tool=order",
+      "status": "ready"
+    },
+    {
+      "id": "dice",
+      "title": "ダイス",
+      "subtitle": "サイコロを振る",
       "icon": "dice",
-      "href": "",
-      "status": "soon"
+      "href": "./tools/?tool=dice",
+      "status": "ready"
     },
     {
-      "id": "creator",
-      "title": "制作",
-      "subtitle": "クリエイティブ",
-      "icon": "layers",
-      "href": "",
-      "status": "soon"
+      "id": "anagram",
+      "title": "任意文字アナグラムガチャ",
+      "subtitle": "文字ガチャ・抽選",
+      "icon": "shuffle",
+      "href": "./tools/?tool=anagram",
+      "status": "ready"
     },
     {
-      "id": "more",
-      "title": "OTHER",
-      "subtitle": "追加予定",
-      "icon": "grid",
-      "href": "",
-      "status": "soon"
+      "id": "chinchiro",
+      "title": "チンチロ",
+      "subtitle": "対戦ゲーム",
+      "icon": "dice",
+      "href": "./tools/?tool=chinchiro",
+      "status": "ready"
+    },
+    {
+      "id": "stream",
+      "title": "配信歴起算",
+      "subtitle": "記念日・配信歴",
+      "icon": "calendar-days",
+      "href": "./tools/?tool=stream",
+      "status": "ready"
     }
   ],
   "profile": {
