@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   const iconMap = {
     'monitor-play': '▣', link: '⇄', sparkles: '✧',
-    dice: '⚄', layers: '◈', grid: '▦'
+    dice: '⚄', layers: '◈', grid: '▦', clock:'◷', 'list-ordered':'☷', shuffle:'⤨', 'calendar-days':'▣'
   };
   const API_FALLBACK = 'https://153-127-64-17.sslip.io/api';
   const state = {config: null, token: '', open: false, tapCount: 0, lastTap: 0, timer: null, device: '', authenticating: false};
@@ -23,6 +23,7 @@
     if (typeof value !== 'string' || !value.trim()) return '';
     const input = value.trim();
     if (allowAnchor && /^#[A-Za-z0-9_-]+$/.test(input)) return input;
+    if (/^\.\/tools\/\?tool=(timer|order|dice|anagram|chinchiro|stream)$/.test(input)) return input;
     try {
       const u = new URL(input);
       return u.protocol === 'https:' ? u.href : '';
@@ -43,9 +44,17 @@
       const card = create(available ? 'a' : 'div', 'tool-card' + (available ? '' : ' soon'));
       if (available) {
         card.href = href;
-        if (!href.startsWith('#')) {card.target = '_blank';card.rel = 'noopener noreferrer';}
+        if (/^https:\/\//.test(href)) {card.target = '_blank';card.rel = 'noopener noreferrer';}
       } else {
         card.setAttribute('aria-label', title + ' - 準備中');
+      }
+      if (!available) {
+        card.replaceChildren(create('strong', 'soon-title', title), create('small', 'soon-text', '準備中'));
+        grid.append(card);
+        const label = create('span', 'disabled');
+        label.append(create('span', 'menu-index', String(i + 1).padStart(2, '0')), create('span', '', title + ' — 準備中'));
+        drawer.append(label);
+        return;
       }
       const icon = create('span', 'tool-icon', iconMap[item.icon] || '✦');
       icon.setAttribute('aria-hidden', 'true');
@@ -56,13 +65,13 @@
       arrow.setAttribute('aria-hidden', 'true');
       meta.append(words, arrow);
       card.append(icon, meta);
-      if (!available) card.append(create('span', 'soon-label', 'COMING SOON'));
+      // Placeholder items above are intentionally text-only.
       grid.append(card);
 
       const nav = create(available ? 'a' : 'span', available ? '' : 'disabled');
       if (available) {
         nav.href = href;
-        if (!href.startsWith('#')) {nav.target = '_blank';nav.rel = 'noopener noreferrer';}
+        if (/^https:\/\//.test(href)) {nav.target = '_blank';nav.rel = 'noopener noreferrer';}
         nav.addEventListener('click', closeDrawer);
       }
       nav.append(create('span', 'menu-index', String(i + 1).padStart(2, '0')), create('span', '', title + (available ? '' : ' — 準備中')));
