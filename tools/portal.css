@@ -1,0 +1,54 @@
+/* Y++ visual system for imported tools. Original game logic remains unchanged. */
+:root{--bg:#0b1019;--bg2:#172131;--line:#394456;--text:#f1f3f7;--muted:#a4adbc;--accent:#dec09d;--font:system-ui,-apple-system,'Hiragino Sans','Yu Gothic',sans-serif}
+html{scroll-padding-top:88px}
+body.portal-tool{display:block;background:radial-gradient(circle at 50% -15%,#1b283a,#0b1019 65%);min-height:100dvh;color:var(--text);padding-top:68px}
+body.portal-tool>header{display:none}
+body.portal-tool>footer{display:none}
+body.portal-tool .site-menu{display:none}
+body.portal-tool .logo-mark{display:none}
+.portal-tools-header{height:68px;position:fixed;top:0;left:0;right:0;z-index:3050;background:#0b1019ee;border-bottom:1px solid #ffffff20;display:flex;align-items:center;gap:12px;padding:0 clamp(14px,4vw,34px);backdrop-filter:blur(16px)}
+.portal-tools-header strong{font-size:clamp(13px,3.5vw,18px);text-align:center;flex:1;line-height:1.25}
+.portal-back{font-size:13px;color:#e0c09c;font-weight:700;white-space:nowrap;text-decoration:none;padding:9px 10px;border:1px solid #ddc09b6e;border-radius:11px}
+.portal-tools-count{font-size:10px;letter-spacing:1.6px;color:#b3a087;white-space:nowrap}
+body.portal-tool main{margin:0 auto;padding:24px 15px;max-width:990px}
+body.portal-tool main>h1,body.portal-tool .clock,body.portal-tool .date-row,body.portal-tool .color-picker{display:none}
+body.portal-tool .timer-order-wrap{width:100%;max-width:900px;margin:0 auto}
+body.portal-tool .timer-section{background:#171f2b;border:1px solid #344153;border-radius:19px;padding:22px 15px;min-width:0}
+body.portal-tool .timer-section .timer-title{color:#d4b491}
+body.portal-tool .timer-display{color:#f3ebdd}
+body.portal-tool .timer-presets button,body.portal-tool .timer-controls button,body.portal-tool .timer-custom button{border:1px solid #455168;border-radius:11px}
+body.portal-tool .timer-custom input{background:#101925;color:#fff;border:1px solid #415067;border-radius:9px;min-width:0}
+body.portal-tool .mode-buttons{display:none}
+body.portal-order .timer-section{display:none}
+body.portal-timer .order-panel{display:none!important}
+body.portal-order .order-panel{display:block;position:static!important;width:100%;max-width:780px;margin:0 auto;background:#171f2b;border:1px solid #344153;border-radius:19px;padding:20px 12px}
+body.portal-order .comment-preview{overflow-wrap:anywhere}
+body.portal-tool .portal-description{text-align:center;color:#b5bdc8;font-size:13px;margin:8px auto 18px}
+body.portal-tool input,body.portal-tool textarea,body.portal-tool select{font-size:16px;max-width:100%;color:var(--text)}
+body.portal-tool button{touch-action:manipulation}
+body.portal-tool .tool-overlay{top:68px;bottom:0;height:calc(100dvh - 68px);z-index:3000;justify-content:flex-start;padding:24px 16px 50px;gap:16px;overflow-y:auto;background:radial-gradient(circle at 50% -15%,#1b283a,#0b1019 65%)}
+body.portal-tool .tool-overlay .tool-back-btn{position:sticky;align-self:flex-start;top:0;left:auto;margin:0;padding:8px 14px;border-color:#d6b18e;color:#e1c4a6;display:none}
+body.portal-tool .tool-overlay .tool-btn{border:1px solid #455168;border-radius:12px;background:#1b2636;color:#eee9e1}
+body.portal-tool .tool-overlay .tool-btn.primary{background:#d8b796;color:#17202b;border-color:#d8b796;font-weight:800}
+body.portal-tool .tool-overlay .quiz-heading{color:#f1e6d6}
+body.portal-tool .tool-overlay .dice-results{max-width:100%}
+body.portal-tool .tool-overlay input,body.portal-tool .tool-overlay select,body.portal-tool .tool-overlay textarea{background:#111b2a;color:#f1f3f7;border:1px solid #435065;border-radius:10px}
+body.portal-tool .tool-overlay .tool-btn:focus-visible,body.portal-tool .portal-back:focus-visible{outline:2px solid #dec09d;outline-offset:3px}
+.portal-timer-modes{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px}
+.portal-timer-modes button{background:#1d2a3a;color:#d1d5df;border:1px solid #435064;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:700}
+.portal-timer-modes button.portal-mode-selected{background:#d8b796;color:#161f2b;border-color:#d8b796}
+body.portal-tool .quiz-timer-view{top:68px}
+body.portal-tool .quiz-timer-view .tool-back-btn{display:block}
+body.portal-tool .quiz-timer-view.time-up{background:radial-gradient(circle at center,#452022,#150b15)}
+body.portal-tool .anagram-content,body.portal-tool .anagram-report{max-width:100%;box-sizing:border-box}
+body.portal-tool .anagram-results{min-width:0}
+body.portal-tool .chinchiro-layout{max-width:100%}
+body.portal-tool .chinchiro-board{max-width:100%}
+@media(max-width:480px){
+body.portal-tool main{padding:16px 10px}
+body.portal-tool .tool-overlay{padding:16px 10px 48px}
+body.portal-tool .timer-section{padding:16px 10px}
+body.portal-tool .order-panel{padding:15px 10px}
+body.portal-tool .tool-overlay h1{font-size:clamp(23px,7vw,34px)}
+body.portal-tool .streamcalc-row{padding:10px;gap:8px;font-size:12px}
+}
