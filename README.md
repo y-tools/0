@@ -78,3 +78,16 @@ APIは既存のY-OBSサーバープロセスで動かし、サーバーのアク
 4. 次回のビンゴでは「新しいゲームにリセット」でゲームIDを更新し、各視聴者のカードも新しくなります。
 
 重要：公開GitHub PagesでGitHub Issueを管理するため、**GitHubトークンを他人に渡さず、画面共有・録画で入力しない**でください。トークン漏えい時はGitHubで直ちに無効化してください。
+
+### ビンゴ管理画面のパスワード認証（VPS方式）
+
+ビンゴページの管理者入口では、管理パスワードを入力するとVPSに照合を依頼し、成功後だけ編集コントロールを表示します。パスワードをGitHub PagesのJavaScript/HTMLに埋め込むことは禁止です。
+
+- VPS側実装: `server/bingo_admin.py` (Python標準ライブラリ、127.0.0.1:8765で待ち受け)
+- 公開API: HTTPS `https://153-127-64-17.sslip.io/api/bingo/admin/login`、`/admin/action`、`/admin/logout`、`/admin/state`
+- VPS環境変数: `YPLUS_BINGO_PIN_HASH` はscryptパスワードハッシュ、`YPLUS_BINGO_GITHUB_TOKEN` はGitHub Issue更新用のprivate PAT。
+- VPSで `python3 server/bingo_admin.py hash-password` を実行し、管理者が希望するパスワードをプロンプトに入力してハッシュを取得します。生成値を `YPLUS_BINGO_PIN_HASH` に設定してください。
+- 既存のHTTPSリバースプロキシから `/api/bingo/` を `http://127.0.0.1:8765/api/bingo/` へ転送する設定、サービス常駐設定とAPI動作確認が必要です。公開Internetにポート8765を直接開けないでください。
+- 失敗回数制限: 同一接続元について15分間に5回の失敗でロック。セッション有効期限: 2時間。プロセス再起動でセッションは破棄。
+- VPS移行中の従来GitHub PAT方式は折りたたみ領域に残しています。VPS方式が正常稼働したら削除してください。
+- **このリポジトリにVPS側実装を追加するだけではVPSへ自動反映されません**。サーバーへの設置・秘密情報の設定・HTTPS接続検証を完了するまで、パスワード方式はログインできません。
