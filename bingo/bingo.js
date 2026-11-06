@@ -27,7 +27,7 @@
     const controller = new AbortController();
     const timeout = setTimeout(()=>controller.abort(),15000);
     try {
-      const headers = {'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+      const headers = {'Accept':'application/vnd.github+json'};
       if (auth && token) headers.Authorization = 'Bearer ' + token;
       if (body) headers['Content-Type'] = 'application/json';
       const resp = await fetch(API + (method === 'GET' ? '?t=' + Date.now() : ''), {method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store',signal:controller.signal});
@@ -126,12 +126,8 @@
       // Token validity must be tested against the authenticated identity. A public Issue GET is not authentication by itself.
       const me=await fetch('https://api.github.com/user',{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json'},cache:'no-store'});
       if(!me.ok)throw new Error('トークンを確認できません（HTTP '+me.status+'）。');
-      const permission=await fetch('https://api.github.com/repos/y-tools/0',{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json'},cache:'no-store'});
-      if(!permission.ok)throw new Error('リポジトリ権限を確認できません。');
-      const repo=await permission.json();
-      if(!repo.permissions?.push&&!repo.permissions?.admin)throw new Error('リポジトリへの書き込み権限がありません。');
       $('adminControls').hidden=false;$('adminLogout').hidden=false;$('adminLogin').hidden=true;$('adminToken').value='';$('adminToken').hidden=true;
-      message('管理者トークンを確認しました。保存時にはGitHub側でも権限が確認されます。');render();
+      message('GitHubトークンを確認しました。Issueの更新権限は保存時に確認されます。');render();
     }catch(e){token='';message(e.message)}
   }
   async function mutate(change,confirmation){
