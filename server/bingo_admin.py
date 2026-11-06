@@ -25,7 +25,7 @@ END = "<!-- YPLUS_BINGO_STATE_END -->"
 BLOCK = re.compile(re.escape(START) + r".*?" + re.escape(END), re.S)
 ORIGINS = set(os.getenv("YPLUS_BINGO_ORIGINS", "https://y-tools.github.io").split(","))
 PIN_HASH = os.getenv("YPLUS_BINGO_PIN_HASH", "")
-GITHUB_TOKEN = os.getenv("YPLUS_BINGO_GITHUB_TOKEN", "")
+STATE_FILE = os.getenv("YPLUS_BINGO_STATE_FILE", "/var/lib/yplus-bingo/state.json")
 SESSIONS = {}
 FAILURES = {}
 LOCK = threading.Lock()
@@ -63,48 +63,27 @@ def check_hash(pin):
         return False
 
 
-def issue_request(method, data=None):
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": "Bearer " + GITHUB_TOKEN,
-        "User-Agent": "YPlus-Bingo-Admin",
-        "Content-Type": "application/json",
-    }
-    request = urllib.request.Request(
-        URL, headers=headers, method=method,
-        data=json.dumps(data, ensure_ascii=False).encode() if data is not None else None)
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            return json.load(response)
-    except (OSError, urllib.error.HTTPError) as exc:
-        raise Error(502, "GitHubとの通信に失敗しました。権限と接続状態を確認してください。") from exc
-
-
 def load():
-    issue = issue_request("GET")
-    body = issue.get("body") or ""
-    match = BLOCK.search(body)
-    if not match:
-        raise Error(502, "共有ビンゴデータが見つかりません。")
-    match_json = re.search(chr(96) * 3 + r"json\s*([\s\S]*?)\s*" + chr(96) * 3, match.group())
-    if not match_json:
-        raise Error(502, "共有ビンゴデータが不正です。")
     try:
-        state = json.loads(match_json.group(1))
-    except ValueError as exc:
-        raise Error(502, "共有ビンゴデータが不正です。") from exc
+        with open(STATE_FILE, encoding="utf-8") as handle:
+            state = json.load(handle)
+    except (OSError, ValueError) as exc:
+        raise Error(503, "ゲームデータを読み込めません。") from exc
     if state.get("schemaVersion") != 1 or not isinstance(state.get("drawn"), list):
-        raise Error(502, "共有ビンゴデータが不正です。")
-    return body, state
+        raise Error(503, "ゲームデータが不正です。")
+    return None, state
 
 
 def save(body, state):
-    fence = chr(96) * 3
-    replacement = START + "\n" + fence + "json\n" + json.dumps(state, ensure_ascii=False, indent=2) + "\n" + fence + "\n" + END
-    updated, n = BLOCK.subn(lambda _: replacement, body, count=1)
-    if n != 1:
-        raise Error(502, "保存先が見つかりません。")
-    issue_request("PATCH", {"body": updated})
+    temp = STATE_FILE + ".tmp"
+    try:
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(state, handle, ensure_ascii=False, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, STATE_FILE)
+    except OSError as exc:
+        raise Error(503, "ゲームデータの保存に失敗しました。") from exc
 
 
 def change(state, payload):
@@ -195,6 +174,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/bingo/health":
             return self.respond(200, {"ok": True})
+        if self.path == "/api/bingo/state":
+            try:
+                _, state = load()
+                return self.respond(200, {"state": state})
+            except Error as exc:
+                return self.respond(exc.status, {"error": str(exc)})
         if self.path == "/api/bingo/admin/state":
             try:
                 self.check_auth()
@@ -256,10 +241,10 @@ def main():
             sys.exit("パスワードが不正です。")
         print(make_hash(password))
         return
-    if not PIN_HASH.startswith("scrypt:") or not GITHUB_TOKEN:
-        sys.exit("YPLUS_BINGO_PIN_HASH と YPLUS_BINGO_GITHUB_TOKEN が必要です。")
-    print("Y++ Bingo admin API: 127.0.0.1:8765", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", 8765), Handler).serve_forever()
+    if not PIN_HASH.startswith("scrypt:"):
+        sys.exit("YPLUS_BINGO_PIN_HASH が必要です。")
+    print("Y++ Bingo admin API on loopback", flush=True)
+    ThreadingHTTPServer(("127.0.0.1", int(os.getenv("YPLUS_BINGO_PORT", "8791"))), Handler).serve_forever()
 
 
 if __name__ == "__main__":
