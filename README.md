@@ -60,34 +60,33 @@ APIは既存のY-OBSサーバープロセスで動かし、サーバーのアク
 サーバー未配備の場合でもUI表示・編集下書き・JSON書き出しができます。
 
 
-## 特設ビンゴ（GitHub-only）
+## 特設ビンゴ（VPS共有・パスワード管理）
 
-- トップページの特設バナー → `/bingo/`
-- 視聴者は各自の端末で5×5カードを持ち、BINGO / REACHを自動計算します。
-- 共有状態は公開GitHub Issue [#1](https://github.com/y-tools/0/issues/1) のJSON。抽選番号・ゲーム開始/一時停止/終了・お知らせ・リセットを共有します。
-- 各視聴者の名前とカードのみ、そのブラウザのlocalStorageへ保存します（GitHubには送信されません）。
-- 公開画面は約60秒ごとにGitHub REST APIを再取得。GitHub APIの未認証レート制限（IP単位、通常60回/時）、アクセス集中、ネットワーク環境の影響を受けます。リアルタイム保証はありません。
-- 管理画面は専用ページ下部の折りたたみから開きます。必要なのは `y-tools/0` に対する **Issues: Read and write** 権限を持つfine-grained GitHub Personal Access Token（PAT）。管理画面で入力したPATはJavaScriptのメモリ内のみに保持し、ブラウザの保存領域・ソースコード・Issueには保存しません。ブラウザを閉じた際に破棄されます。共有パソコンでは必ず「解除」してください。
-- 更新はIssue REST APIへのPATCH。複数管理者の同時操作には排他制御がないため、**同時に操作できる管理者は1名**としてください。抽選処理は重複番号を除外してランダム抽選します。
-- この構成は参加者ごとの不正対策・個別のビンゴ到達報告・当選順の検証には対応していません。カードの再生成は各端末で可能です。順位や景品の公平性が重要なイベントには認証済みサーバーが必要です。
+公開ページ: https://y-tools.github.io/0/bingo/
 
-### セットアップ
-1. 管理用のGitHubアカウントでGitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens を開き、対象を `y-tools/0` に限定し、Issues: Read and writeを与えたトークンを発行してください。
-2. `https://y-tools.github.io/0/bingo/` の「運営者向け管理画面」でトークンを入力します。
-3. 開始/再開 → 抽選する。視聴者側はページを開いておけば自動更新します。
-4. 次回のビンゴでは「新しいゲームにリセット」でゲームIDを更新し、各視聴者のカードも新しくなります。
+- トップページの特設バナーからビンゴページに移動します。
+- 現在のビンゴ画面は75球の抽選、履歴、端末内カード、BINGO/REACHの自動判定を表示します。
+- 抽選状態はVPSの `/var/lib/yplus-bingo/state.json` が唯一の正本で、閲覧画面は `GET https://153-127-64-17.sslip.io/api/bingo/state` から読み込みます（約60秒間隔）。
+- 管理画面はパスワードをVPS APIで認証します。パスワードをHTML/JSやGitHubのコミットには保存しません。
+- 認証後のAPIは `POST /api/bingo/admin/action`。起動/一時停止/抽選/取り消し/終了/リセット/表示テキスト更新が可能です。
+- APIは `server/bingo_admin.py` をVPSの `/usr/local/lib/yplus-bingo/bingo_admin.py` に配置し、`yplus-bingo.service` として127.0.0.1:8791で稼働します。
+- HTTPSはCaddyの `153-127-64-17.sslip.io` サイトが `/api/bingo/*` を127.0.0.1:8791に転送します。既存のY-OBS `/api/*` とはルーティングを分離しています。
+- 管理パスワードのscryptハッシュはVPSのroot専用 `/etc/yplus-bingo.env` に格納し、リポジトリには格納しません。
+- 管理セッションはメモリ内のみで有効期間2時間。認証失敗を繰り返すと15分間の制限がかかります。
+- VPSデータストアのファイルはバックアップ対象に含めてください。
 
-重要：公開GitHub PagesでGitHub Issueを管理するため、**GitHubトークンを他人に渡さず、画面共有・録画で入力しない**でください。トークン漏えい時はGitHubで直ちに無効化してください。
+**未実装の機能:** 参加者による名前での申請、承認/却下、参加者別カードのVPS保存、参加者一覧とステータス管理。現在のカードはまだ端末内発行です。抽選・管理者認証のVPS移行とは別タスクとして対応が必要です。
 
-### ビンゴ管理画面のパスワード認証（VPS方式）
+### 管理用パスワードの再設定
 
-ビンゴページの管理者入口では、管理パスワードを入力するとVPSに照合を依頼し、成功後だけ編集コントロールを表示します。パスワードをGitHub PagesのJavaScript/HTMLに埋め込むことは禁止です。
+VPSで `python3 /usr/local/lib/yplus-bingo/bingo_admin.py hash-password` を実行し、新しいパスワードのscryptハッシュを取得してください。`/etc/yplus-bingo.env` の `YPLUS_BINGO_PIN_HASH` を差し替えて `sudo systemctl restart yplus-bingo` すると反映されます。ハッシュではなく平文のパスワードをファイルに保存しないでください。
 
-- VPS側実装: `server/bingo_admin.py` (Python標準ライブラリ、127.0.0.1:8765で待ち受け)
-- 公開API: HTTPS `https://153-127-64-17.sslip.io/api/bingo/admin/login`、`/admin/action`、`/admin/logout`、`/admin/state`
-- VPS環境変数: `YPLUS_BINGO_PIN_HASH` はscryptパスワードハッシュ、`YPLUS_BINGO_GITHUB_TOKEN` はGitHub Issue更新用のprivate PAT。
-- VPSで `python3 server/bingo_admin.py hash-password` を実行し、管理者が希望するパスワードをプロンプトに入力してハッシュを取得します。生成値を `YPLUS_BINGO_PIN_HASH` に設定してください。
-- 既存のHTTPSリバースプロキシから `/api/bingo/` を `http://127.0.0.1:8765/api/bingo/` へ転送する設定、サービス常駐設定とAPI動作確認が必要です。公開Internetにポート8765を直接開けないでください。
-- 失敗回数制限: 同一接続元について15分間に5回の失敗でロック。セッション有効期限: 2時間。プロセス再起動でセッションは破棄。
-- VPS移行中の従来GitHub PAT方式は折りたたみ領域に残しています。VPS方式が正常稼働したら削除してください。
-- **このリポジトリにVPS側実装を追加するだけではVPSへ自動反映されません**。サーバーへの設置・秘密情報の設定・HTTPS接続検証を完了するまで、パスワード方式はログインできません。
+### 動作確認
+
+```sh
+sudo systemctl status yplus-bingo
+curl -fsS https://153-127-64-17.sslip.io/api/bingo/health
+curl -fsS https://153-127-64-17.sslip.io/api/bingo/state
+```
+
+GitHub Issue #1は旧方式の履歴です。VPS移行後は閲覧・抽選の保存先として使用しません。
