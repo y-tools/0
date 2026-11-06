@@ -1,45 +1,15 @@
 'use strict';
 (() => {
   const $ = id => document.getElementById(id);
-  const API = 'https://api.github.com/repos/y-tools/0/issues/1';
   const VPS_API = 'https://153-127-64-17.sslip.io/api/bingo';
-  const START = '<!-- YPLUS_BINGO_STATE_START -->';
-  const END = '<!-- YPLUS_BINGO_STATE_END -->';
   const CARD_PREFIX = 'yplus.bingo.card.v1.';
-  let state = null, issue = null, token = '', adminMode = '', card = null, busy = false, loading = false;
+  let state = null, token = '', card = null, busy = false, loading = false;
   const escapeText = s => String(s ?? '');
   const storage = {
     get(k){try{return localStorage.getItem(k)}catch{return null}},
     set(k,v){try{localStorage.setItem(k,v)}catch{}}
   };
   function message(s){ $('adminMessage').textContent = s; }
-  function parseIssue(raw) {
-    const body = String(raw.body || '');
-    const start = body.indexOf(START), end = body.indexOf(END);
-    if (start < 0 || end <= start) throw new Error('共有データが見つかりません。');
-    const segment = body.slice(start + START.length,end);
-    const match = segment.match(/```json\s*([\s\S]*?)\s*```/);
-    if (!match) throw new Error('共有データの形式が正しくありません。');
-    const result = JSON.parse(match[1]);
-    if (result.schemaVersion !== 1 || !Array.isArray(result.drawn) || !/^[\w-]{1,100}$/.test(result.roundId)) throw new Error('共有データが不正です。');
-    return result;
-  }
-  async function request(method='GET', body=null, auth=false) {
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(),15000);
-    try {
-      const headers = {'Accept':'application/vnd.github+json'};
-      if (auth && token) headers.Authorization = 'Bearer ' + token;
-      if (body) headers['Content-Type'] = 'application/json';
-      const resp = await fetch(API + (method === 'GET' ? '?t=' + Date.now() : ''), {method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store',signal:controller.signal});
-      const result = await resp.json().catch(()=>({}));
-      if (!resp.ok) {
-        if(resp.status===403||resp.status===429) throw new Error('GitHub APIのアクセス制限または権限不足です（HTTP '+resp.status+'）。');
-        throw new Error(escapeText(result.message||'通信エラー HTTP '+resp.status));
-      }
-      return result;
-    } finally {clearTimeout(timeout)}
-  }
   function shuffle(values){const a=[...values];for(let i=a.length-1;i>0;i--){const n=new Uint32Array(1);crypto.getRandomValues(n);const j=n[0]%(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
   function newCard() {
     const columns = [];
@@ -108,7 +78,7 @@
       if(!fresh || fresh.schemaVersion!==1 || !Array.isArray(fresh.drawn))throw new Error('共有データが不正です。');
       const changed=!state||state.roundId!==fresh.roundId||state.revision!==fresh.revision;
       if(changed&&state&&state.roundId!==fresh.roundId)card=null;
-      state=fresh;issue=null;
+      state=fresh;
       if(changed)render();
       $('connection').textContent='● 共有データ接続中 · 最終確認 '+new Date().toLocaleTimeString('ja-JP');
       $('connection').style.color='#69e7b4';
@@ -129,12 +99,14 @@
       return result;
     } finally {clearTimeout(timeout)}
   }
-  function setAdminOpen(mode, accessToken) {
-    adminMode=mode;token=accessToken;
-    $('adminControls').hidden=false;$('adminLogout').hidden=false;
-    $('adminLogin').hidden=true;$('adminToken').hidden=true;
-    $('adminPasswordLogin').hidden=true;$('adminPassword').hidden=true;
-    $('adminToken').value='';$('adminPassword').value='';render();
+  function setAdminOpen(accessToken) {
+    token=accessToken;
+    $('adminControls').hidden=false;
+    $('adminLogout').hidden=false;
+    $('adminPasswordLogin').hidden=true;
+    $('adminPassword').hidden=true;
+    $('adminPassword').value='';
+    render();
   }
   async function authenticatePassword(){
     const password=$('adminPassword').value;
@@ -143,64 +115,35 @@
     try {
       const result=await vpsRequest('/admin/login','POST',{password});
       if(typeof result.token!=='string'||!result.token)throw new Error('サーバーの認証結果が不正です。');
-      setAdminOpen('vps',result.token);
+      setAdminOpen(result.token);
       message('VPS側で認証できました。管理画面を開きました。');
     } catch(e){message('管理画面を開けません：'+e.message)}
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
-  }
-  async function authenticate(){
-    const input=$('adminToken').value.trim();
-    if(!/^((github_pat_|ghp_)[A-Za-z0-9_]+)$/.test(input))return message('GitHubのアクセストークンを入力してください。');
-    token=input;
-    try{
-      const result=await request('GET',null,true);
-      parseIssue(result);
-      // Token validity must be tested against the authenticated identity. A public Issue GET is not authentication by itself.
-      const me=await fetch('https://api.github.com/user',{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json'},cache:'no-store'});
-      if(!me.ok)throw new Error('トークンを確認できません（HTTP '+me.status+'）。');
-      setAdminOpen('github',token);
-      message('GitHubトークンを確認しました。Issueの更新権限は保存時に確認されます。');
-    }catch(e){token='';message(e.message)}
   }
   async function mutate(change,confirmation){
     if(!token||busy)return;
     if(confirmation&&!confirm(confirmation))return;
     busy=true;const buttons=$('adminControls').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);
     try{
-      if(adminMode==='vps') {
-        const before=state;
-        if(!before)throw new Error('共有ゲームデータを読み込めません。');
-        const edited=JSON.parse(JSON.stringify(before));
-        change(edited);
-        let action='';const payload={expectedRevision:before.revision};
-        if(edited.roundId!==before.roundId) action='reset';
-        else if(edited.drawn.length>before.drawn.length)action='draw';
-        else if(edited.drawn.length<before.drawn.length)action='undo';
-        else if(edited.status!==before.status)action=({running:'start',paused:'pause',finished:'finish'})[edited.status];
-        else action='save';
-        if(action==='save'){payload.title=edited.title;payload.announcement=edited.announcement}
-        payload.action=action;
-        const result=await vpsRequest('/admin/action','POST',payload,token);
-        if(!result.state)throw new Error('VPSの保存結果が不正です。');
-        state=result.state;
-        if(state.roundId!==before.roundId)card=null;
-        setupCard();render();
-        message('VPS経由でGitHubに保存しました。');
-        return;
-      }
-      // Legacy GitHub mode: read the newest version immediately before mutation.
-      const freshIssue=await request('GET',null,true);
-      const before=parseIssue(freshIssue);
-      const after=JSON.parse(JSON.stringify(before));
-      change(after);
-      after.revision=before.revision+1;after.updatedAt=new Date().toISOString();
-      const newBody=freshIssue.body.replace(/<!-- YPLUS_BINGO_STATE_START -->[\s\S]*?<!-- YPLUS_BINGO_STATE_END -->/,START+'\n```json\n'+JSON.stringify(after,null,2)+'\n```\n'+END);
-      // GitHub Issue PATCH has no compare-and-swap; multiple concurrent administrators are not supported.
-      const result=await request('PATCH',{body:newBody},true);
-      issue=result;state=parseIssue(result);
+      const before=state;
+      if(!before)throw new Error('共有ゲームデータを読み込めません。');
+      const edited=JSON.parse(JSON.stringify(before));
+      change(edited);
+      let action='';
+      const payload={expectedRevision:before.revision};
+      if(edited.roundId!==before.roundId)action='reset';
+      else if(edited.drawn.length>before.drawn.length)action='draw';
+      else if(edited.drawn.length<before.drawn.length)action='undo';
+      else if(edited.status!==before.status)action=({running:'start',paused:'pause',finished:'finish'})[edited.status];
+      else action='save';
+      if(action==='save'){payload.title=edited.title;payload.announcement=edited.announcement}
+      payload.action=action;
+      const result=await vpsRequest('/admin/action','POST',payload,token);
+      if(!result.state)throw new Error('VPSの保存結果が不正です。');
+      state=result.state;
       if(state.roundId!==before.roundId)card=null;
       setupCard();render();
-      message('GitHubへ保存しました。視聴者画面は次回の定期取得で反映されます。');
+      message('VPSへ保存しました。視聴者にも順次反映されます。');
     }catch(e){message('保存できませんでした：'+e.message);await refresh(true)}
     finally{busy=false;buttons.forEach(b=>b.disabled=false);render()}
   }
@@ -208,13 +151,14 @@
   $('playerName').addEventListener('input',()=>storage.set('yplus.bingo.name',$('playerName').value.slice(0,30)));
   $('adminPasswordLogin').addEventListener('click',authenticatePassword);
   $('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')authenticatePassword()});
-  $('adminLogin').addEventListener('click',authenticate);
   $('adminLogout').addEventListener('click',async()=>{
-    const oldToken=token,oldMode=adminMode;
-    token='';adminMode='';$('adminControls').hidden=true;$('adminLogout').hidden=true;
-    $('adminLogin').hidden=false;$('adminToken').hidden=false;
-    $('adminPasswordLogin').hidden=false;$('adminPassword').hidden=false;
-    if(oldMode==='vps')await vpsRequest('/admin/logout','POST',{},oldToken).catch(()=>{});
+    const oldToken=token;
+    token='';
+    $('adminControls').hidden=true;
+    $('adminLogout').hidden=true;
+    $('adminPasswordLogin').hidden=false;
+    $('adminPassword').hidden=false;
+    if(oldToken)await vpsRequest('/admin/logout','POST',{},oldToken).catch(()=>{});
     message('ログアウトしました。');
   });
   $('saveEvent').addEventListener('click',()=>mutate(s=>{s.title=$('editTitle').value.slice(0,60);s.announcement=$('editAnnouncement').value.slice(0,300)}));
