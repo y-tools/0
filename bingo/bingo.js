@@ -103,11 +103,12 @@
     if(loading||busy) return;
     loading=true;
     try {
-      const freshIssue=await request();
-      const fresh=parseIssue(freshIssue);
+      const shared=await vpsRequest('/state');
+      const fresh=shared.state;
+      if(!fresh || fresh.schemaVersion!==1 || !Array.isArray(fresh.drawn))throw new Error('共有データが不正です。');
       const changed=!state||state.roundId!==fresh.roundId||state.revision!==fresh.revision;
       if(changed&&state&&state.roundId!==fresh.roundId)card=null;
-      state=fresh;issue=freshIssue;
+      state=fresh;issue=null;
       if(changed)render();
       $('connection').textContent='● 共有データ接続中 · 最終確認 '+new Date().toLocaleTimeString('ja-JP');
       $('connection').style.color='#69e7b4';
