@@ -58,3 +58,23 @@ APIは既存のY-OBSサーバープロセスで動かし、サーバーのアク
 `python3 -m http.server 8080` をルートで起動してください。
 公開プロフィールは初期状態では `site.config.json` を使用します。
 サーバー未配備の場合でもUI表示・編集下書き・JSON書き出しができます。
+
+
+## 特設ビンゴ（GitHub-only）
+
+- トップページの特設バナー → `/bingo/`
+- 視聴者は各自の端末で5×5カードを持ち、BINGO / REACHを自動計算します。
+- 共有状態は公開GitHub Issue [#1](https://github.com/y-tools/0/issues/1) のJSON。抽選番号・ゲーム開始/一時停止/終了・お知らせ・リセットを共有します。
+- 各視聴者の名前とカードのみ、そのブラウザのlocalStorageへ保存します（GitHubには送信されません）。
+- 公開画面は約60秒ごとにGitHub REST APIを再取得。GitHub APIの未認証レート制限（IP単位、通常60回/時）、アクセス集中、ネットワーク環境の影響を受けます。リアルタイム保証はありません。
+- 管理画面は専用ページ下部の折りたたみから開きます。必要なのは `y-tools/0` に対する **Issues: Read and write** 権限を持つfine-grained GitHub Personal Access Token（PAT）。管理画面で入力したPATはJavaScriptのメモリ内のみに保持し、ブラウザの保存領域・ソースコード・Issueには保存しません。ブラウザを閉じた際に破棄されます。共有パソコンでは必ず「解除」してください。
+- 更新はIssue REST APIへのPATCH。複数管理者の同時操作には排他制御がないため、**同時に操作できる管理者は1名**としてください。抽選処理は重複番号を除外してランダム抽選します。
+- この構成は参加者ごとの不正対策・個別のビンゴ到達報告・当選順の検証には対応していません。カードの再生成は各端末で可能です。順位や景品の公平性が重要なイベントには認証済みサーバーが必要です。
+
+### セットアップ
+1. 管理用のGitHubアカウントでGitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens を開き、対象を `y-tools/0` に限定し、Issues: Read and writeを与えたトークンを発行してください。
+2. `https://y-tools.github.io/0/bingo/` の「運営者向け管理画面」でトークンを入力します。
+3. 開始/再開 → 抽選する。視聴者側はページを開いておけば自動更新します。
+4. 次回のビンゴでは「新しいゲームにリセット」でゲームIDを更新し、各視聴者のカードも新しくなります。
+
+重要：公開GitHub PagesでGitHub Issueを管理するため、**GitHubトークンを他人に渡さず、画面共有・録画で入力しない**でください。トークン漏えい時はGitHubで直ちに無効化してください。
