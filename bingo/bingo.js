@@ -2,10 +2,11 @@
 (() => {
   const $ = id => document.getElementById(id);
   const API = 'https://api.github.com/repos/y-tools/0/issues/1';
+  const VPS_API = 'https://153-127-64-17.sslip.io/api/bingo';
   const START = '<!-- YPLUS_BINGO_STATE_START -->';
   const END = '<!-- YPLUS_BINGO_STATE_END -->';
   const CARD_PREFIX = 'yplus.bingo.card.v1.';
-  let state = null, issue = null, token = '', card = null, busy = false, loading = false;
+  let state = null, issue = null, token = '', adminMode = '', card = null, busy = false, loading = false;
   const escapeText = s => String(s ?? '');
   const storage = {
     get(k){try{return localStorage.getItem(k)}catch{return null}},
@@ -116,6 +117,36 @@
       if(!silent)message(e.message);
     } finally {loading=false}
   }
+  async function vpsRequest(path, method='GET', payload=null, accessToken='') {
+    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
+    try{
+      const resp=await fetch(VPS_API+path,{method,mode:'cors',cache:'no-store',signal:controller.signal,
+        headers:{'Content-Type':'application/json',...(accessToken?{Authorization:'Bearer '+accessToken}:{})},
+        body:payload?JSON.stringify(payload):undefined});
+      const result=await resp.json().catch(()=>({}));
+      if(!resp.ok)throw new Error(String(result.error||('VPS API HTTP '+resp.status)));
+      return result;
+    } finally {clearTimeout(timeout)}
+  }
+  function setAdminOpen(mode, accessToken) {
+    adminMode=mode;token=accessToken;
+    $('adminControls').hidden=false;$('adminLogout').hidden=false;
+    $('adminLogin').hidden=true;$('adminToken').hidden=true;
+    $('adminPasswordLogin').hidden=true;$('adminPassword').hidden=true;
+    $('adminToken').value='';$('adminPassword').value='';render();
+  }
+  async function authenticatePassword(){
+    const password=$('adminPassword').value;
+    if(!password)return message('管理者パスワードを入力してください。');
+    $('adminPasswordLogin').disabled=true;
+    try {
+      const result=await vpsRequest('/admin/login','POST',{password});
+      if(typeof result.token!=='string'||!result.token)throw new Error('サーバーの認証結果が不正です。');
+      setAdminOpen('vps',result.token);
+      message('VPS側で認証できました。管理画面を開きました。');
+    } catch(e){message('管理画面を開けません：'+e.message)}
+    finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
+  }
   async function authenticate(){
     const input=$('adminToken').value.trim();
     if(!/^((github_pat_|ghp_)[A-Za-z0-9_]+)$/.test(input))return message('GitHubのアクセストークンを入力してください。');
@@ -126,8 +157,8 @@
       // Token validity must be tested against the authenticated identity. A public Issue GET is not authentication by itself.
       const me=await fetch('https://api.github.com/user',{headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json'},cache:'no-store'});
       if(!me.ok)throw new Error('トークンを確認できません（HTTP '+me.status+'）。');
-      $('adminControls').hidden=false;$('adminLogout').hidden=false;$('adminLogin').hidden=true;$('adminToken').value='';$('adminToken').hidden=true;
-      message('GitHubトークンを確認しました。Issueの更新権限は保存時に確認されます。');render();
+      setAdminOpen('github',token);
+      message('GitHubトークンを確認しました。Issueの更新権限は保存時に確認されます。');
     }catch(e){token='';message(e.message)}
   }
   async function mutate(change,confirmation){
@@ -135,7 +166,28 @@
     if(confirmation&&!confirm(confirmation))return;
     busy=true;const buttons=$('adminControls').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);
     try{
-      // Read the newest version immediately before a mutation.
+      if(adminMode==='vps') {
+        const before=state;
+        if(!before)throw new Error('共有ゲームデータを読み込めません。');
+        const edited=JSON.parse(JSON.stringify(before));
+        change(edited);
+        let action='';const payload={expectedRevision:before.revision};
+        if(edited.roundId!==before.roundId) action='reset';
+        else if(edited.drawn.length>before.drawn.length)action='draw';
+        else if(edited.drawn.length<before.drawn.length)action='undo';
+        else if(edited.status!==before.status)action=({running:'start',paused:'pause',finished:'finish'})[edited.status];
+        else action='save';
+        if(action==='save'){payload.title=edited.title;payload.announcement=edited.announcement}
+        payload.action=action;
+        const result=await vpsRequest('/admin/action','POST',payload,token);
+        if(!result.state)throw new Error('VPSの保存結果が不正です。');
+        state=result.state;
+        if(state.roundId!==before.roundId)card=null;
+        setupCard();render();
+        message('VPS経由でGitHubに保存しました。');
+        return;
+      }
+      // Legacy GitHub mode: read the newest version immediately before mutation.
       const freshIssue=await request('GET',null,true);
       const before=parseIssue(freshIssue);
       const after=JSON.parse(JSON.stringify(before));
@@ -153,8 +205,17 @@
   }
   $('generateCard').addEventListener('click',()=>{if(!state)return;if(!confirm('この端末のビンゴカードを作り直しますか？'))return;card=newCard();storage.set(CARD_PREFIX+state.roundId,JSON.stringify(card));renderCard()});
   $('playerName').addEventListener('input',()=>storage.set('yplus.bingo.name',$('playerName').value.slice(0,30)));
+  $('adminPasswordLogin').addEventListener('click',authenticatePassword);
+  $('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')authenticatePassword()});
   $('adminLogin').addEventListener('click',authenticate);
-  $('adminLogout').addEventListener('click',()=>{token='';$('adminControls').hidden=true;$('adminLogout').hidden=true;$('adminLogin').hidden=false;$('adminToken').hidden=false;message('管理者トークンを解除しました。')});
+  $('adminLogout').addEventListener('click',async()=>{
+    const oldToken=token,oldMode=adminMode;
+    token='';adminMode='';$('adminControls').hidden=true;$('adminLogout').hidden=true;
+    $('adminLogin').hidden=false;$('adminToken').hidden=false;
+    $('adminPasswordLogin').hidden=false;$('adminPassword').hidden=false;
+    if(oldMode==='vps')await vpsRequest('/admin/logout','POST',{},oldToken).catch(()=>{});
+    message('ログアウトしました。');
+  });
   $('saveEvent').addEventListener('click',()=>mutate(s=>{s.title=$('editTitle').value.slice(0,60);s.announcement=$('editAnnouncement').value.slice(0,300)}));
   $('startGame').addEventListener('click',()=>mutate(s=>{s.status='running'}));
   $('pauseGame').addEventListener('click',()=>mutate(s=>{s.status='paused'}));
