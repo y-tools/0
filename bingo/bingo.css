@@ -165,3 +165,11 @@ dialog::backdrop{background:#0009}
 }
 
 #continuousDraw.toggle-on{background:var(--green);color:#102019;box-shadow:0 0 0 2px #69e7b433 inset}
+
+
+.winner-section{margin-top:26px;padding-top:20px;border-top:1px solid #ffffff18}
+.winner-list{display:grid;gap:8px}
+.winner-row{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid #ffffff18;border-radius:12px;background:#ffffff07}
+.winner-rank{display:grid;place-items:center;min-width:30px;height:30px;border-radius:50%;background:var(--gold);color:#172131;font-weight:900}
+.winner-main{min-width:0;flex:1}
+.winner-main strong{display:block;color:var(--ink);margin-bottom:3px}
