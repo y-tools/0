@@ -152,5 +152,5 @@
   $('drawNumber').addEventListener('click',()=>mutate('draw'));$('undoNumber').addEventListener('click',()=>mutate('undo',{},'最後の抽選番号を取り消しますか？'));
   $('resetGame').addEventListener('click',()=>mutate('reset',{},'抽選番号をすべてリセットしますか？ 発行済みカードは保持されます。'));
   window.addEventListener('pagehide',()=>{token=''});
-  refresh();setInterval(()=>{if(!document.hidden)refresh(true)},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
+  refresh();setInterval(()=>{if(!document.hidden)refresh(true)},1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
