@@ -6,6 +6,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ORIGINS=set(os.getenv("YPLUS_BINGO_ORIGINS","https://y-tools.github.io").split(","))
 PIN_HASH=os.getenv("YPLUS_BINGO_PIN_HASH","")
+OWNER_ID=os.getenv("YPLUS_BINGO_OWNER_ID","Y")
+SESSION_FILE=os.getenv("YPLUS_BINGO_SESSION_FILE","/var/lib/yplus-bingo/sessions.json")
+ADMIN_USERS_FILE=os.getenv("YPLUS_BINGO_ADMIN_USERS_FILE","/var/lib/yplus-bingo/admin_users.json")
 STATE_FILE=os.getenv("YPLUS_BINGO_STATE_FILE","/var/lib/yplus-bingo/state.json")
 PARTICIPANTS_FILE=os.getenv("YPLUS_BINGO_PARTICIPANTS_FILE","/var/lib/yplus-bingo/participants.json")
 CHAT_FILE=os.getenv("YPLUS_BINGO_CHAT_FILE","/var/lib/yplus-bingo/chat.json")
@@ -21,13 +24,14 @@ def unb64(v): return base64.urlsafe_b64decode(v+"="*(-len(v)%4))
 def make_hash(pin):
     salt=secrets.token_bytes(16); digest=hashlib.scrypt(pin.encode(),salt=salt,n=16384,r=8,p=1)
     return "scrypt:"+b64(salt)+":"+b64(digest)
-def check_hash(pin):
+def verify_hash(pin,encoded):
     try:
-        version,salt,digest=PIN_HASH.split(":")
+        version,salt,digest=encoded.split(":")
         if version!="scrypt": return False
         actual=hashlib.scrypt(pin.encode(),salt=unb64(salt),n=16384,r=8,p=1)
         return hmac.compare_digest(actual,unb64(digest))
     except (ValueError,TypeError): return False
+def check_hash(pin): return verify_hash(pin,PIN_HASH)
 
 def load_json(path,default):
     try:
@@ -60,6 +64,25 @@ def load_chat():
         raise Error(503,"チャットデータが不正です。")
     return data
 def save_chat(data): save_json(CHAT_FILE,data)
+def load_sessions():
+    data=load_json(SESSION_FILE,{"schemaVersion":1,"sessions":{}})
+    if data.get("schemaVersion")!=1 or not isinstance(data.get("sessions"),dict):
+        raise Error(503,"セッションデータが不正です。")
+    now=time.time()
+    return {k:v for k,v in data["sessions"].items() if isinstance(v,dict) and v.get("expiresAt",0)>=now}
+def save_sessions(): save_json(SESSION_FILE,{"schemaVersion":1,"sessions":SESSIONS})
+def load_admin_users():
+    data=load_json(ADMIN_USERS_FILE,{"schemaVersion":1,"users":[]})
+    if data.get("schemaVersion")!=1 or not isinstance(data.get("users"),list):
+        raise Error(503,"管理者アカウントデータが不正です。")
+    return data
+def save_admin_users(data): save_json(ADMIN_USERS_FILE,data)
+def find_admin_user(admin_id):
+    admin_id=str(admin_id or "").strip()
+    if admin_id==OWNER_ID:
+        return {"id":OWNER_ID,"role":"owner","passwordHash":PIN_HASH}
+    data=load_admin_users()
+    return next((u for u in data["users"] if u.get("id")==admin_id),None)
 def make_card():
     ranges=[range(1,21),range(21,41),range(41,61),range(61,81),range(81,100)]
     columns=[]
@@ -141,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         with LOCK:
             info=SESSIONS.get(session)
             if not info or info.get("expiresAt",0)<now:
-                SESSIONS.pop(session,None); raise Error(401,"ログインの有効期限が切れました。")
+                SESSIONS.pop(session,None); save_sessions(); raise Error(401,"ログインの有効期限が切れました。")
             info["lastSeen"]=now
         return session
     def do_GET(self):
@@ -160,9 +183,15 @@ class Handler(BaseHTTPRequestHandler):
                 session=self.check_auth(); now=time.time()
                 with LOCK:
                     online=sum(1 for info in SESSIONS.values() if info.get("expiresAt",0)>=now and now-info.get("lastSeen",0)<=15)
-                    me=SESSIONS.get(session,{}).get("name","")
+                    me=SESSIONS.get(session,{})
                 chat=load_chat()
-                return self.respond(200,{"onlineCount":online,"name":me,"messages":chat["messages"][-100:]})
+                return self.respond(200,{"onlineCount":online,"name":me.get("name",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","messages":chat["messages"][-100:]})
+            if self.path=="/api/bingo/admin/users":
+                session=self.check_auth()
+                with LOCK: info=SESSIONS.get(session,{})
+                if info.get("role")!="owner": raise Error(403,"この設定はYのみ変更できます。")
+                users=[{"id":OWNER_ID,"role":"owner"}]+[{"id":u.get("id"),"role":"admin"} for u in load_admin_users()["users"]]
+                return self.respond(200,{"users":users})
             return self.respond(404,{"error":"Not found"})
         except Error as exc: return self.respond(exc.status,{"error":str(exc)})
     def do_POST(self):
@@ -196,16 +225,24 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     bad=[t for t in FAILURES.get(ip,[]) if now-t<900]; FAILURES[ip]=bad
                     if len(bad)>=5: raise Error(429,"認証失敗が続いたため、15分後に再試行してください。")
-                password=data.get("password")
-                if not isinstance(password,str) or len(password)>128 or not check_hash(password):
+                admin_id=data.get("adminId"); password=data.get("password"); remember=bool(data.get("remember"))
+                if not isinstance(admin_id,str) or not 1<=len(admin_id.strip())<=64:
+                    raise Error(400,"管理者IDを入力してください。")
+                user=find_admin_user(admin_id)
+                if not user or not isinstance(password,str) or len(password)>128 or not verify_hash(password,user.get("passwordHash","")):
                     with LOCK: FAILURES.setdefault(ip,[]).append(now)
-                    raise Error(401,"パスワードが正しくありません。")
+                    raise Error(401,"管理者IDまたはパスワードが正しくありません。")
+                ttl=86400 if remember else 7200
                 session=secrets.token_urlsafe(32)
-                with LOCK: FAILURES.pop(ip,None); SESSIONS[session]={"expiresAt":now+7200,"lastSeen":now,"name":""}
-                return self.respond(200,{"token":session,"expiresIn":7200})
+                with LOCK:
+                    FAILURES.pop(ip,None)
+                    SESSIONS[session]={"expiresAt":now+ttl,"lastSeen":now,"name":"","adminId":user["id"],"role":user["role"]}
+                    save_sessions()
+                return self.respond(200,{"token":session,"expiresIn":ttl,"adminId":user["id"],"canManageUsers":user["role"]=="owner"})
             if self.path=="/api/bingo/admin/logout":
                 session=self.check_auth()
-                with LOCK: SESSIONS.pop(session,None)
+                with LOCK:
+                    SESSIONS.pop(session,None); save_sessions()
                 return self.respond(200,{"ok":True})
             if self.path=="/api/bingo/admin/participant":
                 self.check_auth(); pid=data.get("participantId"); action=data.get("action")
@@ -232,7 +269,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path=="/api/bingo/admin/name":
                 session=self.check_auth(); name=data.get("name")
                 if not isinstance(name,str) or not 1<=len(name.strip())<=30: raise Error(400,"名前は1〜30文字で入力してください。")
-                with LOCK: SESSIONS[session]["name"]=name.strip()
+                with LOCK:
+                    SESSIONS[session]["name"]=name.strip(); save_sessions()
                 return self.respond(200,{"name":name.strip()})
             if self.path=="/api/bingo/admin/chat":
                 session=self.check_auth(); message=data.get("message")
@@ -243,6 +281,32 @@ class Handler(BaseHTTPRequestHandler):
                     chat=load_chat(); chat["messages"].append({"id":"m-"+secrets.token_urlsafe(6),"name":name,"message":message.strip(),"createdAt":now_text()})
                     chat["messages"]=chat["messages"][-200:]; save_chat(chat)
                 return self.respond(201,{"ok":True})
+            if self.path=="/api/bingo/admin/users":
+                session=self.check_auth()
+                with LOCK: info=SESSIONS.get(session,{})
+                if info.get("role")!="owner": raise Error(403,"この設定はYのみ変更できます。")
+                action=data.get("action"); admin_id=data.get("adminId")
+                if action not in ("create","delete","change_password"): raise Error(400,"管理者アカウント操作が不正です。")
+                if not isinstance(admin_id,str) or not 1<=len(admin_id.strip())<=64: raise Error(400,"管理者IDを1〜64文字で入力してください。")
+                admin_id=admin_id.strip()
+                if admin_id==OWNER_ID: raise Error(409,"Yアカウントはこの画面から削除・変更できません。")
+                with WRITE_LOCK:
+                    store=load_admin_users(); existing=next((u for u in store["users"] if u.get("id")==admin_id),None)
+                    if action=="create":
+                        password=data.get("password")
+                        if existing: raise Error(409,"同じ管理者IDがすでにあります。")
+                        if not isinstance(password,str) or not 8<=len(password)<=128: raise Error(400,"パスワードは8〜128文字で設定してください。")
+                        store["users"].append({"id":admin_id,"role":"admin","passwordHash":make_hash(password),"createdAt":now_text()})
+                    elif action=="delete":
+                        if not existing: raise Error(404,"管理者IDが見つかりません。")
+                        store["users"]=[u for u in store["users"] if u.get("id")!=admin_id]
+                    else:
+                        password=data.get("password")
+                        if not existing: raise Error(404,"管理者IDが見つかりません。")
+                        if not isinstance(password,str) or not 8<=len(password)<=128: raise Error(400,"パスワードは8〜128文字で設定してください。")
+                        existing["passwordHash"]=make_hash(password); existing["updatedAt"]=now_text()
+                    save_admin_users(store)
+                return self.respond(200,{"ok":True})
             if self.path=="/api/bingo/admin/action":
                 self.check_auth()
                 with WRITE_LOCK:
@@ -254,6 +318,8 @@ class Handler(BaseHTTPRequestHandler):
         except Error as exc: return self.respond(exc.status,{"error":str(exc)})
 
 def main():
+    global SESSIONS
+    SESSIONS=load_sessions()
     if len(sys.argv)==2 and sys.argv[1]=="hash-password":
         password=getpass.getpass("管理画面パスワード: ")
         if not password or len(password)>128: sys.exit("パスワードが不正です。")
