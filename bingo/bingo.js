@@ -136,7 +136,15 @@
     $('miniDrawStatus').textContent=active?(reveal?'決定！':'抽選中...'):(state?.drawActive?'次の抽選待ち':'抽選停止中');
     player.classList.toggle('is-drawing',active);
   }
+  // Keep launch visibility independent of participant loading and card rendering.
+  function syncMiniPlayerVisibility(){
+    const active=state?.drawActive===true;
+    const button=$('miniPlayerOpen');
+    if(button)button.hidden=!active;
+    if(!active)closeMiniPlayer();
+  }
   function openMiniPlayer(){
+    if(state?.drawActive!==true)return;
     const person=selectedPublicPerson();
     if(!person||!person.cards?.length){
       const viewer=document.querySelector('.viewer-box');
@@ -248,6 +256,7 @@
     if($('continuousSettingsEstimate'))$('continuousSettingsEstimate').textContent=text;
   }
   function renderState(){
+    syncMiniPlayerVisibility();
     if(!state)return;
     $('eventTitle').textContent=state.title||'Y++ 特設ビンゴ';
     $('eventDescription').textContent=state.description||'参加者みんなで楽しむ、99球のビンゴ！';
@@ -266,14 +275,16 @@
       if(!state.drawActive&&continuousMode)setContinuousMode(false);
     }
     renderParticipants();renderAdminPeople();renderWinners();renderPublicCards();renderChat();updateDrawAnimation();updateContinuousEstimate();
-    const miniBtn=$('miniPlayerOpen');if(miniBtn)miniBtn.hidden=!state.drawActive;
-    if(!state.drawActive)closeMiniPlayer();else renderMiniPlayer();
+    if(state.drawActive===true)renderMiniPlayer();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
     if(loading||busy)return;loading=true;
     try{
-      const [s,p]=await Promise.all([api('/state'),api('/participants')]);state=s.state;participants=p.participants||[];
+      const [,p]=await Promise.all([
+        api('/state').then(s=>{state=s.state;syncMiniPlayerVisibility()}),
+        api('/participants')
+      ]);participants=p.participants||[];
       if(token){const [admin,ov]=await Promise.all([api('/admin/participants','GET',null,token),api('/admin/overview','GET',null,token)]);participants=admin.participants||participants;overview=ov||overview;}
       renderState();
       const now=new Date().toLocaleTimeString('ja-JP');
@@ -301,7 +312,7 @@
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
   }
   async function participantAction(id,action){if(!token||busy)return;busy=true;try{await api('/admin/participant','POST',{participantId:id,action},token);await refresh(true)}catch(e){message('参加者操作に失敗しました：'+e.message)}finally{busy=false}}
-  async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
+  async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;syncMiniPlayerVisibility();await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
 
   function setContinuousMode(on){
     if(on&&(!state?.drawActive||state.drawn.length>=99)){message('先に「抽選開始」を押してから連続抽選をONにしてください。');return}
