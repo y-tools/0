@@ -25,6 +25,14 @@
 </section>
 
 </main>
+<dialog id="continuousSettingsDialog" class="continuous-settings-dialog">
+  <div class="dialog-head"><h2>連続抽選設定</h2><button id="continuousSettingsClose" type="button" class="secondary">閉じる</button></div>
+  <p class="hint">抽選演出が約5秒あるため、間隔は5秒以上で設定してください。</p>
+  <label class="continuous-setting-field">抽選間隔（秒）<input id="continuousIntervalSec" type="number" min="5" max="3600" step="1" value="10" inputmode="numeric"></label>
+  <div class="interval-presets"><button type="button" data-interval="5">5秒</button><button type="button" data-interval="10">10秒</button><button type="button" data-interval="15">15秒</button><button type="button" data-interval="30">30秒</button><button type="button" data-interval="60">60秒</button></div>
+  <div id="continuousSettingsEstimate" class="continuous-settings-estimate"></div>
+  <button id="saveContinuousSettings" type="button">この設定を使う</button>
+</dialog>
 <dialog id="cardDialog"><div class="dialog-head"><h2 id="dialogTitle">ビンゴカード</h2><button id="dialogClose" type="button" class="secondary">閉じる</button></div><div id="dialogCards"></div></dialog>
 <footer>Y++ / SPECIAL EVENT · <a href="../">PORTAL</a></footer></div>
 
@@ -48,9 +56,9 @@
         <div class="admin-settings">
           <label>イベント名<input id="editTitle" maxlength="60"></label>
           <label>お知らせ<textarea id="editAnnouncement" maxlength="300" rows="2"></textarea></label>
-          <div class="admin-buttons"><button id="startDrawMode" type="button">抽選開始</button><button id="stopDrawMode" type="button" class="secondary">抽選終了</button><button id="drawNumber" type="button" class="primary">抽選する</button><button id="continuousDraw" type="button" class="secondary" aria-pressed="false">連続抽選：OFF</button><button id="undoNumber" type="button" class="secondary">直前の番号を取り消す</button><button id="finishGame" type="button" class="secondary">大会終了</button><button id="resetGame" type="button" class="danger">抽選番号をリセット</button></div>
+          <div class="admin-buttons"><button id="startDrawMode" type="button">抽選開始</button><button id="stopDrawMode" type="button" class="secondary">抽選終了</button><button id="drawNumber" type="button" class="primary">抽選する</button><button id="continuousDraw" type="button" class="secondary" aria-pressed="false">連続抽選：OFF</button><button id="continuousSettings" type="button" class="secondary">連続抽選設定</button><button id="undoNumber" type="button" class="secondary">直前の番号を取り消す</button><button id="finishGame" type="button" class="secondary">大会終了</button><button id="resetGame" type="button" class="danger">抽選番号をリセット</button></div>
         </div>
-        <div id="adminDrawAnimation" class="draw-animation compact" hidden><span>抽選中...</span><strong>--</strong></div>
+        <div class="continuous-summary"><strong id="continuousEstimate">残り99個 · 10秒間隔 · 終了まで約16分30秒</strong></div><div id="adminDrawAnimation" class="draw-animation compact" hidden><span>抽選中...</span><strong>--</strong></div>
         <div class="history-head"><h3>抽選済み番号 <span id="adminDrawCount">0 / 99</span></h3></div>
         <div id="adminHistory" class="history admin-history" aria-live="polite"></div>
       </section>
