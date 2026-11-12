@@ -108,8 +108,18 @@
     }
     const section=document.createElement('section');section.className='public-person';
     const title=document.createElement('h3');title.textContent=person.name+'（'+person.cards.length+'枚）';section.append(title);
-    person.cards.forEach((card,i)=>section.append(makeCardElement(card,i)));
-    root.append(section);
+    miniPlayerCardIndex=Math.max(0,Math.min(miniPlayerCardIndex,person.cards.length-1));
+    const view=document.createElement('div');view.className='public-card-view';
+    view.append(makeCardElement(person.cards[miniPlayerCardIndex],miniPlayerCardIndex));
+    if(person.cards.length>1){
+      view.classList.add('has-multiple');
+      const nav=document.createElement('nav');nav.className='public-card-nav';nav.setAttribute('aria-label','表示カードの切り替え');
+      const previous=document.createElement('button');previous.type='button';previous.className='secondary';previous.textContent='‹ 前';previous.dataset.cardStep='-1';previous.setAttribute('aria-label','前のカード');previous.disabled=miniPlayerCardIndex===0;
+      const count=document.createElement('span');count.className='public-card-position';count.textContent=(miniPlayerCardIndex+1)+' / '+person.cards.length+'枚';count.setAttribute('aria-live','polite');
+      const next=document.createElement('button');next.type='button';next.className='secondary';next.textContent='次 ›';next.dataset.cardStep='1';next.setAttribute('aria-label','次のカード');next.disabled=miniPlayerCardIndex===person.cards.length-1;
+      nav.append(previous,count,next);view.append(nav);
+    }
+    section.append(view);root.append(section);
   }
   function selectedPublicPerson(){
     const id=$('participantSelect')?.value||'';
@@ -155,7 +165,6 @@
       $('participantSelect')?.focus();
       return;
     }
-    miniPlayerCardIndex=0;
     $('miniPlayer').hidden=false;
     renderMiniPlayer();
     $('miniPlayerMessage').textContent='小窓用の動画を準備しています…';
@@ -352,7 +361,7 @@
     syncMiniPlayerVisibility();
     if(!state)return;
     $('eventTitle').textContent=state.title||'Y++ 特設ビンゴ';
-    $('eventDescription').textContent=state.description||'参加者みんなで楽しむ、99球のビンゴ！';
+    $('eventDescription').textContent='参加者みんなで楽しむBINGO！';
     $('announcement').textContent=state.announcement||'';
     $('gameStatus').textContent=state.drawActive?'現在抽選中':(({waiting:'準備中',running:'開催中',paused:'一時停止',finished:'終了'})[state.status]||'準備中');
     $('latestNumber').textContent=drawAnimationActive()?'…':(state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–');
@@ -476,7 +485,13 @@
 
   $('applyCard').addEventListener('click',apply);
   $('participantSelect').addEventListener('change',()=>{miniPlayerCardIndex=0;renderPublicCards();renderMiniPlayer()});
-  $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p);else renderPublicCards()});
+  $('publicCards').addEventListener('click',e=>{
+    const button=e.target.closest('[data-card-step]');if(!button||button.disabled)return;
+    const person=selectedPublicPerson();if(!person?.cards?.length)return;
+    miniPlayerCardIndex=Math.max(0,Math.min(miniPlayerCardIndex+Number(button.dataset.cardStep),person.cards.length-1));
+    renderPublicCards();renderMiniPlayer();
+    $('publicCards').querySelector('[data-card-step="'+button.dataset.cardStep+'"]:not(:disabled)')?.focus({preventScroll:true});
+  });
   $('miniPlayerOpen').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openMiniPlayer()});
   $('miniPictureInPicture').addEventListener('click',enterMiniPictureInPicture);
   $('miniPlayerVideo').addEventListener('enterpictureinpicture',()=>{$('miniPlayerMessage').textContent='小窓再生中です。カードの切り替えはこのページで操作してください。'});
@@ -484,8 +499,8 @@
   $('miniPlayerVideo').addEventListener('leavepictureinpicture',miniPipEnded);
   $('miniPlayerVideo').addEventListener('webkitpresentationmodechanged',()=>{if(miniPlayerInPictureInPicture())$('miniPlayerMessage').textContent='小窓再生中です。';else miniPipEnded()});
   $('miniPlayerClose').addEventListener('click',closeMiniPlayer);
-  $('miniPrevCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex-1+p.cards.length)%p.cards.length;renderMiniPlayer()});
-  $('miniNextCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex+1)%p.cards.length;renderMiniPlayer()});
+  $('miniPrevCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex-1+p.cards.length)%p.cards.length;renderPublicCards();renderMiniPlayer()});
+  $('miniNextCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex+1)%p.cards.length;renderPublicCards();renderMiniPlayer()});
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);$('adminId').addEventListener('keydown',e=>{if(e.key==='Enter')login()});$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});

@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css?v=20261113-chat-admin-id-3"><script defer src="./bingo.js?v=20261113-chat-admin-id-3"></script></head>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css?v=20261113-card-navigation-4"><script defer src="./bingo.js?v=20261113-card-navigation-4"></script></head>
 <body><div id="publicView"><header class="site-header"><a href="../" class="brand">Y<span>++</span></a><span class="section-name">SPECIAL EVENT / BINGO</span><a href="../" class="back">← HOME</a></header>
 <main>
-<section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em id="adminTrigger">BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、99球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
+<section class="hero"><div class="hero-tag">✦ SPECIAL EVENT</div><h1>みんなで、<em id="adminTrigger">BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむBINGO！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
 
 <section class="layout">
   <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong><div id="publicDrawAnimation" class="draw-animation public-draw-spectacle" hidden aria-live="assertive"><div class="draw-glow"></div><div class="draw-ring draw-ring-a"></div><div class="draw-ring draw-ring-b"></div><div class="draw-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="draw-core"><span class="draw-caption">抽選中...</span><strong>--</strong></div></div></div><div id="announcement" class="announcement"></div>
@@ -10,7 +10,7 @@
       <summary><span>ビンゴカード確認</span><span class="summary-actions"><button id="miniPlayerOpen" type="button" class="mini-player-launch" hidden>▶ ミニプレイヤー</button><small>タップして開く</small></span></summary>
       <div class="collapsible-content">
         <p class="hint">参加者名を選ぶと、発行済みのビンゴカードを誰のものでも確認できます。</p>
-        <div class="card-actions"><select id="participantSelect" aria-label="参加者名"><option value="">参加者を選択</option></select><button id="viewParticipant" type="button" class="secondary">確認</button></div>
+        <div class="card-actions"><select id="participantSelect" aria-label="参加者名"><option value="">参加者を選択</option></select></div>
         <div id="publicCards"></div>
       </div>
     </details>

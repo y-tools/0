@@ -252,3 +252,13 @@ dialog::backdrop{background:#0009}
 .mini-player.is-video .mini-player-body{display:none}
 .mini-player>.mini-card-tools{margin:8px 0}
 .mini-player>.mini-card-tools button{min-width:44px;min-height:44px}
+
+/* Keep one public card visible with paging controls beside it. */
+.public-card-view{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:center}
+.public-card-view.has-multiple{grid-template-columns:minmax(0,1fr) auto}
+.public-card-view>.issued-card{min-width:0;margin:0}
+.public-card-nav{display:flex;flex-direction:column;align-items:center;gap:10px}
+.public-card-nav button{min-width:52px;min-height:44px;padding:9px 8px}
+.public-card-nav button:disabled{cursor:default}
+.public-card-position{font-size:12px;color:var(--gold);white-space:nowrap}
+@media(max-width:420px){.public-card-view{gap:7px}.public-card-view>.issued-card{padding:8px}.public-card-view .issued-card-head{font-size:10px;letter-spacing:0}.public-card-view .bingo-cell{font-size:16px}.public-card-view .bingo-cell.head{font-size:18px}}
