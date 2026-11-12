@@ -95,15 +95,19 @@
     person.cards.forEach((card,i)=>target.append(makeCardElement(card,i)));
   }
   function renderPublicCards(){
-    const root=$('publicCards'); root.replaceChildren();
-    const approved=participants.filter(p=>p.status==='approved'&&p.cards?.length);
-    if(!approved.length){const p=document.createElement('p');p.className='hint';p.textContent='発行済みカードはありません。';root.append(p);return}
-    approved.forEach(person=>{
-      const section=document.createElement('section');section.className='public-person';
-      const title=document.createElement('h3');title.textContent=person.name+'（'+person.cards.length+'枚）';section.append(title);
-      person.cards.forEach((card,i)=>section.append(makeCardElement(card,i)));
-      root.append(section);
-    });
+    const root=$('publicCards'); if(!root)return; root.replaceChildren();
+    const id=$('participantSelect')?.value||'';
+    if(!id){
+      const p=document.createElement('p');p.className='hint';p.textContent='確認したい参加者を選択してください。';root.append(p);return;
+    }
+    const person=participants.find(p=>p.id===id&&p.status==='approved');
+    if(!person||!person.cards?.length){
+      const p=document.createElement('p');p.className='hint';p.textContent='発行済みカードはありません。';root.append(p);return;
+    }
+    const section=document.createElement('section');section.className='public-person';
+    const title=document.createElement('h3');title.textContent=person.name+'（'+person.cards.length+'枚）';section.append(title);
+    person.cards.forEach((card,i)=>section.append(makeCardElement(card,i)));
+    root.append(section);
   }
   function openDialog(person){$('dialogTitle').textContent=person.name+' のビンゴカード';renderPersonCards(person,$('dialogCards'));$('cardDialog').showModal();}
   function renderParticipants(){
@@ -313,8 +317,8 @@
   adminTrigger.addEventListener('pointerdown',startAdminHold);adminTrigger.addEventListener('pointerup',cancelAdminHold);adminTrigger.addEventListener('pointercancel',cancelAdminHold);adminTrigger.addEventListener('pointerleave',cancelAdminHold);adminTrigger.addEventListener('contextmenu',e=>e.preventDefault());
 
   $('applyCard').addEventListener('click',apply);
-  $('participantSelect').addEventListener('change',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);renderPersonCards(p,$('publicCards'))});
-  $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p)});
+  $('participantSelect').addEventListener('change',renderPublicCards);
+  $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p);else renderPublicCards()});
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);$('adminId').addEventListener('keydown',e=>{if(e.key==='Enter')login()});$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
