@@ -8,6 +8,7 @@ ORIGINS=set(os.getenv("YPLUS_BINGO_ORIGINS","https://y-tools.github.io").split("
 PIN_HASH=os.getenv("YPLUS_BINGO_PIN_HASH","")
 STATE_FILE=os.getenv("YPLUS_BINGO_STATE_FILE","/var/lib/yplus-bingo/state.json")
 PARTICIPANTS_FILE=os.getenv("YPLUS_BINGO_PARTICIPANTS_FILE","/var/lib/yplus-bingo/participants.json")
+CHAT_FILE=os.getenv("YPLUS_BINGO_CHAT_FILE","/var/lib/yplus-bingo/chat.json")
 SESSIONS={}; FAILURES={}; LOCK=threading.Lock(); WRITE_LOCK=threading.Lock()
 
 class Error(Exception):
@@ -53,10 +54,17 @@ def load_people():
         raise Error(503,"参加者データが不正です。")
     return data
 def save_people(data): save_json(PARTICIPANTS_FILE,data)
+def load_chat():
+    data=load_json(CHAT_FILE,{"schemaVersion":1,"messages":[]})
+    if data.get("schemaVersion")!=1 or not isinstance(data.get("messages"),list):
+        raise Error(503,"チャットデータが不正です。")
+    return data
+def save_chat(data): save_json(CHAT_FILE,data)
 def make_card():
+    ranges=[range(1,21),range(21,41),range(41,61),range(61,81),range(81,100)]
     columns=[]
-    for c in range(5):
-        pool=list(range(c*15+1,c*15+16)); chosen=[]
+    for source in ranges:
+        pool=list(source); chosen=[]
         while len(chosen)<5:
             n=secrets.choice(pool); pool.remove(n); chosen.append(n)
         columns.append(chosen)
@@ -66,7 +74,7 @@ def card_obj(round_id):
 def public_person(p):
     return {"id":p["id"],"name":p["name"],"status":p["status"],"cards":p.get("cards",[])}
 def admin_person(p):
-    return {**public_person(p),"deviceId":p.get("deviceId",""),"createdAt":p.get("createdAt"),"updatedAt":p.get("updatedAt")}
+    return {**public_person(p),"deviceId":p.get("deviceId",""),"pendingExtra":int(p.get("pendingExtra",0) or 0),"createdAt":p.get("createdAt"),"updatedAt":p.get("updatedAt")}
 def find_person(data,pid):
     return next((p for p in data["participants"] if p.get("id")==pid),None)
 
@@ -82,14 +90,15 @@ def change_state(state,payload):
     elif action=="finish": state["status"]="finished"
     elif action=="draw":
         if state.get("status")!="running": raise Error(400,"ゲームを開始してください。")
-        remaining=[n for n in range(1,76) if n not in numbers]
+        remaining=[n for n in range(1,100) if n not in numbers]
         if not remaining: raise Error(400,"すべて抽選済みです。")
-        numbers.append(secrets.choice(remaining))
+        picked=secrets.choice(remaining); numbers.append(picked)
+        state["lastDraw"]={"number":picked,"animationUntilMs":int(time.time()*1000)+5000}
     elif action=="undo":
         if not numbers: raise Error(400,"取り消す番号がありません。")
-        numbers.pop()
+        numbers.pop(); state.pop("lastDraw",None)
     elif action=="reset":
-        state["drawn"]=[]; state["status"]="waiting"
+        state["drawn"]=[]; state["status"]="waiting"; state.pop("lastDraw",None)
     else: raise Error(400,"不正な管理操作です。")
     state["revision"]=int(state.get("revision",0))+1; state["updatedAt"]=now_text(); return state
 
@@ -128,10 +137,12 @@ class Handler(BaseHTTPRequestHandler):
     def check_auth(self):
         value=self.headers.get("Authorization","")
         if not value.startswith("Bearer "): raise Error(401,"管理画面にログインしてください。")
-        session=value[7:]
+        session=value[7:]; now=time.time()
         with LOCK:
-            if SESSIONS.get(session,0)<time.time():
+            info=SESSIONS.get(session)
+            if not info or info.get("expiresAt",0)<now:
                 SESSIONS.pop(session,None); raise Error(401,"ログインの有効期限が切れました。")
+            info["lastSeen"]=now
         return session
     def do_GET(self):
         try:
@@ -145,6 +156,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.check_auth(); return self.respond(200,{"state":load_state()})
             if self.path=="/api/bingo/admin/participants":
                 self.check_auth(); return self.respond(200,{"participants":[admin_person(p) for p in load_people()["participants"]]})
+            if self.path=="/api/bingo/admin/overview":
+                session=self.check_auth(); now=time.time()
+                with LOCK:
+                    online=sum(1 for info in SESSIONS.values() if info.get("expiresAt",0)>=now and now-info.get("lastSeen",0)<=15)
+                    me=SESSIONS.get(session,{}).get("name","")
+                chat=load_chat()
+                return self.respond(200,{"onlineCount":online,"name":me,"messages":chat["messages"][-100:]})
             return self.respond(404,{"error":"Not found"})
         except Error as exc: return self.respond(exc.status,{"error":str(exc)})
     def do_POST(self):
@@ -160,12 +178,17 @@ class Handler(BaseHTTPRequestHandler):
                 name=name.strip()
                 with WRITE_LOCK:
                     store=load_people()
-                    same=[p for p in store["participants"] if p.get("deviceId")==device and p.get("status") in ("pending","approved")]
-                    if same: raise Error(409,"この端末からはすでに申請されています。")
+                    pending=next((p for p in store["participants"] if p.get("deviceId")==device and (p.get("status")=="pending" or int(p.get("pendingExtra",0) or 0)>0)),None)
+                    if pending: raise Error(409,"この端末には承認待ちの申請があります。")
+                    approved=next((p for p in store["participants"] if p.get("deviceId")==device and p.get("status")=="approved"),None)
                     now=now_text()
-                    p={"id":"p-"+secrets.token_urlsafe(8),"name":name,"deviceId":device,"status":"pending","cards":[],"createdAt":now,"updatedAt":now}
-                    store["participants"].append(p); save_people(store)
-                return self.respond(201,{"participant":public_person(p)})
+                    if approved:
+                        approved["pendingExtra"]=1; approved["updatedAt"]=now; p=approved
+                    else:
+                        p={"id":"p-"+secrets.token_urlsafe(8),"name":name,"deviceId":device,"status":"pending","pendingExtra":0,"cards":[],"createdAt":now,"updatedAt":now}
+                        store["participants"].append(p)
+                    save_people(store)
+                return self.respond(201,{"participant":public_person(p),"additional":p.get("status")=="approved"})
             if self.path=="/api/bingo/admin/login":
                 ip=self.client_address[0]
                 if ip in ("127.0.0.1","::1"): ip=self.headers.get("X-Real-IP",ip).strip()[:64]
@@ -178,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
                     with LOCK: FAILURES.setdefault(ip,[]).append(now)
                     raise Error(401,"パスワードが正しくありません。")
                 session=secrets.token_urlsafe(32)
-                with LOCK: FAILURES.pop(ip,None); SESSIONS[session]=now+7200
+                with LOCK: FAILURES.pop(ip,None); SESSIONS[session]={"expiresAt":now+7200,"lastSeen":now,"name":""}
                 return self.respond(200,{"token":session,"expiresIn":7200})
             if self.path=="/api/bingo/admin/logout":
                 session=self.check_auth()
@@ -192,16 +215,34 @@ class Handler(BaseHTTPRequestHandler):
                     if not p: raise Error(404,"参加者が見つかりません。")
                     state=load_state()
                     if action=="approve":
-                        if p.get("status")!="pending": raise Error(409,"この申請はすでに処理済みです。")
-                        p["status"]="approved"; p["cards"]=[card_obj(state["roundId"])]
+                        if p.get("status")=="pending":
+                            p["status"]="approved"; p["cards"]=[card_obj(state["roundId"])]
+                        elif p.get("status")=="approved" and int(p.get("pendingExtra",0) or 0)>0:
+                            p.setdefault("cards",[]).append(card_obj(state["roundId"])); p["pendingExtra"]=0
+                        else: raise Error(409,"この申請はすでに処理済みです。")
                     elif action=="reject":
-                        if p.get("status")!="pending": raise Error(409,"この申請はすでに処理済みです。")
-                        p["status"]="rejected"
+                        if p.get("status")=="pending": p["status"]="rejected"
+                        elif p.get("status")=="approved" and int(p.get("pendingExtra",0) or 0)>0: p["pendingExtra"]=0
+                        else: raise Error(409,"この申請はすでに処理済みです。")
                     else:
                         if p.get("status")!="approved": raise Error(409,"承認済み参加者にのみ追加発行できます。")
                         p.setdefault("cards",[]).append(card_obj(state["roundId"]))
                     p["updatedAt"]=now_text(); save_people(store)
                 return self.respond(200,{"participant":admin_person(p)})
+            if self.path=="/api/bingo/admin/name":
+                session=self.check_auth(); name=data.get("name")
+                if not isinstance(name,str) or not 1<=len(name.strip())<=30: raise Error(400,"名前は1〜30文字で入力してください。")
+                with LOCK: SESSIONS[session]["name"]=name.strip()
+                return self.respond(200,{"name":name.strip()})
+            if self.path=="/api/bingo/admin/chat":
+                session=self.check_auth(); message=data.get("message")
+                if not isinstance(message,str) or not 1<=len(message.strip())<=300: raise Error(400,"メッセージは1〜300文字で入力してください。")
+                with LOCK: name=SESSIONS.get(session,{}).get("name","")
+                if not name: raise Error(409,"先に表示名を設定してください。")
+                with WRITE_LOCK:
+                    chat=load_chat(); chat["messages"].append({"id":"m-"+secrets.token_urlsafe(6),"name":name,"message":message.strip(),"createdAt":now_text()})
+                    chat["messages"]=chat["messages"][-200:]; save_chat(chat)
+                return self.respond(201,{"ok":True})
             if self.path=="/api/bingo/admin/action":
                 self.check_auth()
                 with WRITE_LOCK:
