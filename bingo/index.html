@@ -30,8 +30,9 @@
 
 <dialog id="adminLoginDialog" class="admin-login-dialog">
   <div class="dialog-head"><h2>運営者ログイン</h2><button id="adminLoginClose" type="button" class="secondary">閉じる</button></div>
-  <p class="hint">運営者用パスワードを入力してください。</p>
-  <div class="admin-login"><input id="adminPassword" type="password" maxlength="128" placeholder="管理者パスワード" autocomplete="off" aria-label="管理者パスワード"><button id="adminPasswordLogin" type="button">ログイン</button></div>
+  <p class="hint">管理者IDとパスワードを入力してください。</p>
+  <div class="admin-login"><input id="adminId" maxlength="64" placeholder="管理者ID" autocomplete="username" aria-label="管理者ID"><input id="adminPassword" type="password" maxlength="128" placeholder="管理者パスワード" autocomplete="current-password" aria-label="管理者パスワード"><button id="adminPasswordLogin" type="button">ログイン</button></div>
+  <label class="remember-login"><input id="rememberAdmin" type="checkbox" checked> この端末で24時間ログイン状態を保持する</label>
   <p id="adminMessage" class="admin-message" role="status"></p>
 </dialog>
 
