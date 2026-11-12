@@ -5,7 +5,7 @@
 <section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em id="adminTrigger">BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、99球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
 
 <section class="layout">
-  <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong></div><div id="publicDrawAnimation" class="draw-animation" hidden><span>抽選中...</span><strong>--</strong></div><div id="announcement" class="announcement"></div>    <div class="viewer-box">
+  <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong></div><div id="publicDrawAnimation" class="draw-animation public-draw-spectacle" hidden aria-live="assertive"><div class="draw-glow"></div><div class="draw-ring draw-ring-a"></div><div class="draw-ring draw-ring-b"></div><div class="draw-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="draw-core"><span class="draw-kicker">Y++ BINGO DRAW</span><span class="draw-caption">抽選中...</span><strong>--</strong><small>運命の番号を選んでいます</small></div></div><div id="announcement" class="announcement"></div>    <div class="viewer-box">
       <h2>ビンゴカード確認</h2>
       <p class="hint">発行済みのビンゴカードを参加者ごとに一覧表示します。現在のBINGO / REACH状況もそのまま確認できます。</p>
       <div class="card-actions" hidden><select id="participantSelect" aria-label="参加者名"><option value="">参加者を選択</option></select><button id="viewParticipant" type="button" class="secondary">確認</button></div>
@@ -17,7 +17,7 @@
     <div class="section-title"><span>02 / BINGO CARD</span><span>ENTRY / VIEW</span></div>
     <div id="applicationArea">
       <h2>ビンゴカード発行申し込み</h2>
-      <p class="hint">抽選開始前のみ申請できます。REALITY上の表示名を入力してください。承認後は同じ端末から追加カードも申請できます。</p>
+      <p class="hint">抽選中でもビンゴカードを申請できます。REALITY上の表示名を入力してください。承認後は同じ端末から追加カードも申請できます。</p>
       <div class="card-actions"><label for="playerName">REALITY上の名前</label><input id="playerName" maxlength="30" placeholder="REALITY上の名前" autocomplete="off"><button id="applyCard" type="button">発行申請</button></div>
       <p id="applicationMessage" class="admin-message" role="status"></p>
     </div>
