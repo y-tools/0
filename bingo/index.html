@@ -66,6 +66,14 @@
         <p id="chatNameStatus" class="small-note">最初に名前を設定してください。</p>
         <div id="adminChatMessages" class="chat-messages" aria-live="polite"></div>
         <div class="chat-send-row"><textarea id="adminChatInput" maxlength="300" rows="2" placeholder="メッセージを入力"></textarea><button id="sendAdminChat" type="button">送信</button></div>
+
+        <section id="adminUserSettings" class="admin-user-settings" hidden>
+          <div class="section-title"><span>OWNER / ADMIN USERS</span><span>Yのみ</span></div>
+          <h3>管理者アカウント設定</h3>
+          <div class="chat-name-row"><input id="newAdminId" maxlength="64" placeholder="追加する管理者ID"><input id="newAdminPassword" type="password" maxlength="128" placeholder="パスワード（8文字以上）"><button id="createAdminUser" type="button">追加</button></div>
+          <p id="adminUsersMessage" class="small-note"></p>
+          <div id="adminUsersList" class="participant-list"></div>
+        </section>
       </section>
     </div>
   </main>
