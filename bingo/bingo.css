@@ -11,3 +11,12 @@ dialog::backdrop{background:#0009}
 .issued-card{margin:16px 0;padding:14px;border:1px solid #ffffff1f;border-radius:14px;background:#ffffff06}
 .issued-card-head{font-size:12px;font-weight:800;color:var(--gold);letter-spacing:.6px}
 @media(max-width:780px){.admin-grid{grid-template-columns:1fr}.participant-row button{flex:1}}
+
+#adminTrigger{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.admin-login-dialog{width:min(92vw,440px)}
+.admin-login-dialog .admin-login{margin-top:14px}
+.admin-page{min-height:100vh}
+.admin-page-header{position:sticky;top:0;z-index:10;background:#0b1019e8;backdrop-filter:blur(10px);border-bottom:1px solid #ffffff18}
+.admin-page-header button{margin-left:auto}
+.admin-page-main{max-width:1100px;margin:0 auto;padding:28px 18px 56px}
+.admin-page .admin{max-width:none;margin:0}
