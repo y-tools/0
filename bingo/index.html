@@ -1,7 +1,44 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css"><script defer src="./bingo.js"></script></head>
 <body><header class="site-header"><a href="../" class="brand">Y<span>++</span></a><span class="section-name">SPECIAL EVENT / BINGO</span><a href="../" class="back">← HOME</a></header>
-<main><section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em>BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、75球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
-<section class="layout"><section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong></div><div id="announcement" class="announcement"></div><div class="history-head"><h3>抽選済み番号 <span id="drawCount">0 / 75</span></h3></div><div id="history" class="history" aria-live="polite"></div></section>
-<section class="card card-section"><div class="section-title"><span>02 / MY BINGO CARD</span><span id="roundLabel">ROUND —</span></div><div class="card-actions"><label for="playerName">参加名</label><input id="playerName" maxlength="30" placeholder="お名前（この端末のみ）" autocomplete="off"><button id="generateCard" type="button" class="secondary">新しいカード</button></div><p class="hint">カードは端末ごとに生成されます。抽選番号は全員共通で、自動でマークされます。カードの再生成は進行中の記録を失います。</p><div id="bingoCard" class="bingo-card" aria-label="ビンゴカード"></div><div class="achievements"><div><strong id="bingoCount">0</strong><span>BINGO</span></div><div><strong id="reachCount">0</strong><span>REACH</span></div></div><p class="small-note">別のブラウザや端末へカードを引き継ぐ仕組みはありません。カードはこの端末のみに保存されます。</p></section>
-</section><section class="card admin"><details id="adminDetails"><summary>運営者向け管理画面を開く</summary><div class="admin-body"><p>運営者用パスワードを入力してください。VPS側で認証する方式です。まだVPSの認証APIが設定されていない場合、接続エラーが表示されます。</p><div class="admin-login"><input id="adminPassword" type="password" inputmode="numeric" maxlength="20" placeholder="管理者パスワード" autocomplete="off" aria-label="管理者パスワード"><button id="adminPasswordLogin" type="button">管理画面を開く</button><button id="adminLogout" class="secondary" type="button" hidden>ログアウト</button></div><p id="adminMessage" class="admin-message" role="status"></p><div id="adminControls" hidden><label>イベント名<input id="editTitle" maxlength="60"></label><label>お知らせ<textarea id="editAnnouncement" maxlength="300" rows="2"></textarea></label><div class="admin-buttons"><button id="saveEvent" type="button">表示内容を保存</button><button id="startGame" type="button">開始 / 再開</button><button id="pauseGame" type="button" class="secondary">一時停止</button><button id="drawNumber" type="button" class="primary">抽選する</button><button id="undoNumber" type="button" class="secondary">直前の番号を取り消す</button><button id="finishGame" type="button" class="secondary">終了</button><button id="resetGame" type="button" class="danger">新しいゲームにリセット</button></div><p class="small-note">更新はVPSに保存され、閲覧画面へ約60秒ごとに同期されます。複数の管理者が同時に変更した場合は更新競合を検出します。</p></div></div></details></section></main><footer>Y++ / SPECIAL EVENT · <a href="../">PORTAL</a></footer></body></html>
+<main>
+<section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em>BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、75球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
+
+<section class="layout">
+  <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong></div><div id="announcement" class="announcement"></div><div class="history-head"><h3>抽選済み番号 <span id="drawCount">0 / 75</span></h3></div><div id="history" class="history" aria-live="polite"></div></section>
+
+  <section class="card card-section">
+    <div class="section-title"><span>02 / BINGO CARD</span><span>ENTRY / VIEW</span></div>
+    <div id="applicationArea">
+      <h2>ビンゴカード発行申し込み</h2>
+      <p class="hint">抽選開始前のみ申請できます。REALITY上の表示名を入力してください。同じ端末からの連続申請はできません。</p>
+      <div class="card-actions"><label for="playerName">REALITY上の名前</label><input id="playerName" maxlength="30" placeholder="REALITY上の名前" autocomplete="off"><button id="applyCard" type="button">発行申請</button></div>
+      <p id="applicationMessage" class="admin-message" role="status"></p>
+    </div>
+    <div class="viewer-box">
+      <h2>ビンゴカード確認</h2>
+      <p class="hint">参加者名を選ぶと、発行済みカードと現在のBINGO / REACH状況を確認できます。</p>
+      <div class="card-actions"><select id="participantSelect" aria-label="参加者名"><option value="">参加者を選択</option></select><button id="viewParticipant" type="button" class="secondary">確認</button></div>
+      <div id="publicCards"></div>
+    </div>
+  </section>
+</section>
+
+<section class="card admin"><details id="adminDetails"><summary>運営者向け管理画面を開く</summary><div class="admin-body">
+  <p>運営者用パスワードを入力してください。VPS側で認証します。</p>
+  <div class="admin-login"><input id="adminPassword" type="password" maxlength="128" placeholder="管理者パスワード" autocomplete="off" aria-label="管理者パスワード"><button id="adminPasswordLogin" type="button">管理画面を開く</button><button id="adminLogout" class="secondary" type="button" hidden>ログアウト</button></div>
+  <p id="adminMessage" class="admin-message" role="status"></p>
+  <div id="adminControls" hidden>
+    <div class="admin-grid">
+      <section><h3>申請一覧</h3><div id="pendingParticipants" class="participant-list"></div></section>
+      <section><h3>参加者一覧</h3><div id="approvedParticipants" class="participant-list"></div></section>
+    </div>
+    <label>イベント名<input id="editTitle" maxlength="60"></label>
+    <label>お知らせ<textarea id="editAnnouncement" maxlength="300" rows="2"></textarea></label>
+    <div class="admin-buttons"><button id="saveEvent" type="button">表示内容を保存</button><button id="startGame" type="button">開始 / 再開</button><button id="pauseGame" type="button" class="secondary">一時停止</button><button id="drawNumber" type="button" class="primary">抽選する</button><button id="undoNumber" type="button" class="secondary">直前の番号を取り消す</button><button id="finishGame" type="button" class="secondary">終了</button><button id="resetGame" type="button" class="danger">抽選番号をリセット</button></div>
+    <p class="small-note">参加者・カード・抽選状態はすべてビンゴ専用VPS領域に保存されます。</p>
+  </div>
+</div></details></section>
+</main>
+<dialog id="cardDialog"><div class="dialog-head"><h2 id="dialogTitle">ビンゴカード</h2><button id="dialogClose" type="button" class="secondary">閉じる</button></div><div id="dialogCards"></div></dialog>
+<footer>Y++ / SPECIAL EVENT · <a href="../">PORTAL</a></footer></body></html>
