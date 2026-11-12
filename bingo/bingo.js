@@ -3,16 +3,16 @@
   const $=id=>document.getElementById(id);
   const API='https://153-127-64-17.sslip.io/api/bingo';
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
-  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(storage.get('yplus.bingo.continuous.interval.v1')||10)), miniPlayerCardIndex=0;
+  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Math.min(3600,Math.round(Number(storage.get('yplus.bingo.continuous.interval.v1')||10))||10)), miniPlayerCardIndex=0;
 
-  let miniVideoCanvas=null, miniVideoStream=null, lastStateSyncAt=0, dialogParticipantId='';
+  let miniVideoCanvas=null, miniVideoStream=null, lastStateSyncAt=0, dialogParticipantId='', serverClockOffsetMs=0, eventSettingsDirty=false, settingsSaving=false;
 
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
     if(!id){id='dev-'+crypto.randomUUID();storage.set('yplus.bingo.device.v1',id)}
     return id;
   }
-  function message(s){if($('adminMessage'))$('adminMessage').textContent=s}
+  function message(s){['adminMessage','adminControlMessage','continuousSettingsMessage'].forEach(id=>{if($(id))$(id).textContent=s})}
   async function api(path,method='GET',body=null,accessToken=''){
     const ctl=new AbortController(), timer=setTimeout(()=>ctl.abort(),15000);
     try{
@@ -141,7 +141,7 @@
     card.numbers.forEach((n,i)=>{const el=document.createElement('div');const mark=i===12||hits.has(n);el.className='mini-cell'+(mark?' marked':'')+(i===12?' free':'');el.textContent=i===12?'FREE':String(n);root.append(el)});
     const stats=lineStats(card);
     $('miniPlayerStats').textContent='BINGO '+stats.bingo+' / REACH '+stats.reach+' / あと'+stats.remaining;
-    const active=drawAnimationActive(),until=Number(state?.lastDraw?.animationUntilMs||0),remaining=Math.max(0,until-Date.now());
+    const active=drawAnimationActive(),until=Number(state?.lastDraw?.animationUntilMs||0),remaining=Math.max(0,until-serverNow());
     const picked=Number(state?.lastDraw?.number||state?.drawn?.at(-1)||0);
     const reveal=active&&remaining<=900&&picked>0;
     $('miniDrawNumber').textContent=active?(reveal?String(picked).padStart(2,'0'):String(1+Math.floor(Math.random()*99)).padStart(2,'0')):(picked?String(picked).padStart(2,'0'):'--');
@@ -203,6 +203,7 @@
     const stale=lastStateSyncAt&&Date.now()-lastStateSyncAt>10000;
     const time=lastStateSyncAt?new Date(lastStateSyncAt).toLocaleTimeString('ja-JP'):'未同期';
     text((stale?'同期が遅れています · ':'最終更新 ')+time,480,586,19,stale?'#ffbc8c':'#a6b1c2',900);
+    paintCelebrationOnCanvas(ctx);
   }
   function enforceMiniPlayerMute(){
     const video=$('miniPlayerVideo');if(!video)return;
@@ -338,11 +339,86 @@
     });
     if(shouldStick)root.scrollTop=root.scrollHeight;
   }
-  function drawAnimationActive(){return !!(state?.lastDraw&&Number(state.lastDraw.animationUntilMs)>Date.now())}
+  function serverNow(){return Date.now()+serverClockOffsetMs}
+  function receiveState(data){
+    if(Number.isFinite(data.serverTimeMs))serverClockOffsetMs=data.serverTimeMs-Date.now();
+    state=data.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility();
+  }
+  function activeCelebration(){
+    if(!state?.drawActive)return null;
+    const now=serverNow();
+    return (state.celebrations||[]).find(event=>event.startsAtMs<=now&&now<event.endsAtMs)||null;
+  }
+  function celebrationPending(){return !!state?.drawActive&&(state.celebrations||[]).some(event=>event.endsAtMs>serverNow())}
+  function achievementLabel(entry){
+    if(entry.type==='reach')return 'REACH! あと1個';
+    return (entry.bingoFrom===entry.bingoTo?entry.bingoTo:entry.bingoFrom+'〜'+entry.bingoTo)+'ビンゴ目！';
+  }
+  function renderCelebrations(){
+    const event=activeCelebration(),now=serverNow();
+    ['publicCelebration','miniCelebration','adminCelebration'].forEach(id=>{
+      const root=$(id);if(!root)return;
+      root.hidden=!event;if(!event){root.dataset.eventId='';return;}
+      if(root.dataset.eventId!==event.id){
+        root.dataset.eventId=event.id;root.replaceChildren();
+        const title=document.createElement('strong');title.className='celebration-kicker';title.textContent=event.entries.some(entry=>entry.type==='bingo')?'BINGO!':'REACH!';
+        const viewport=document.createElement('div');viewport.className='celebration-viewport';
+        const list=document.createElement('div');list.className='celebration-list';
+        event.entries.forEach(entry=>{
+          const row=document.createElement('div');row.className='celebration-person';
+          const name=document.createElement('strong');name.textContent=entry.name;
+          const label=document.createElement('span');label.textContent=achievementLabel(entry);
+          row.append(name,label);list.append(row);
+        });viewport.append(list);root.append(title,viewport);
+      }
+      const progress=Math.max(0,Math.min(1,(now-event.startsAtMs)/(event.endsAtMs-event.startsAtMs)));
+      const list=root.querySelector('.celebration-list'),viewport=root.querySelector('.celebration-viewport');
+      list.style.transform='translateY(-'+Math.max(0,list.scrollHeight-viewport.clientHeight)*progress+'px)';
+      root.style.opacity=String(Math.min(1,(now-event.startsAtMs)/300,(event.endsAtMs-now)/500));
+    });
+  }
+  function paintCelebrationOnCanvas(ctx){
+    const event=activeCelebration();if(!event)return;
+    const progress=(serverNow()-event.startsAtMs)/(event.endsAtMs-event.startsAtMs);
+    ctx.save();ctx.fillStyle='#10192bf5';ctx.fillRect(0,0,960,600);
+    for(let i=0;i<24;i++){
+      ctx.fillStyle=i%2?'#69e7b4':'#e1bc8c';
+      ctx.fillRect((i*131+progress*80)%960,(i*73+progress*640)%600,8,16);
+    }
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#e1bc8c';ctx.font='900 76px system-ui, sans-serif';
+    ctx.fillText(event.entries.some(entry=>entry.type==='bingo')?'BINGO!':'REACH!',480,90,900);
+    const pageCount=Math.ceil(event.entries.length/3),page=Math.min(pageCount-1,Math.floor(progress*pageCount));
+    const entries=event.entries.slice(page*3,page*3+3);
+    entries.forEach((entry,i)=>{
+      const y=210+i*122;
+      ctx.fillStyle='#fff';ctx.font='800 43px system-ui, sans-serif';ctx.fillText(entry.name,480,y,850);
+      ctx.fillStyle=entry.type==='bingo'?'#e1bc8c':'#69e7b4';ctx.font='800 34px system-ui, sans-serif';ctx.fillText(achievementLabel(entry),480,y+48,850);
+    });
+    ctx.restore();
+  }
+  function syncEventSettings(){
+    if(!state||eventSettingsDirty||settingsSaving)return;
+    if(document.activeElement===$('editTitle')||document.activeElement===$('editAnnouncement'))return;
+    $('editTitle').value=state.title||'';$('editAnnouncement').value=state.announcement||'';
+  }
+  async function saveEventSettings(){
+    if(settingsSaving||busy||!token)return;
+    const title=$('editTitle').value.trim(),announcement=$('editAnnouncement').value;
+    if(!title||title.length>60||announcement.length>300){message('イベント名は1〜60文字、お知らせは300文字以内で入力してください。');return;}
+    settingsSaving=true;$('editTitle').disabled=true;$('editAnnouncement').disabled=true;$('saveEventSettings').disabled=true;
+    try{
+      if(await mutate('save',{title,announcement})){eventSettingsDirty=false;message('イベント名とお知らせを保存しました。')}
+    }finally{
+      settingsSaving=false;$('editTitle').disabled=false;$('editAnnouncement').disabled=false;
+      syncEventSettings();$('saveEventSettings').disabled=!eventSettingsDirty;
+    }
+  }
+
+  function drawAnimationActive(){return !!(state?.lastDraw&&Number(state.lastDraw.animationUntilMs)>serverNow())}
   function updateDrawAnimation(){
     const active=drawAnimationActive();
     const until=Number(state?.lastDraw?.animationUntilMs||0);
-    const remaining=Math.max(0,until-Date.now());
+    const remaining=Math.max(0,until-serverNow());
     const picked=Number(state?.lastDraw?.number||state?.drawn?.at(-1)||0);
     const reveal=active&&remaining<=900&&picked>0;
     const rolling=String(1+Math.floor(Math.random()*99)).padStart(2,'0');
@@ -388,8 +464,8 @@
     $('latestNumber').textContent=drawAnimationActive()?'…':(state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–');
     renderHistory('history','drawCount');renderHistory('adminHistory','adminDrawCount');$('applicationArea').hidden=false;
     if(token){
-      $('editTitle').value=state.title||'';$('editAnnouncement').value=state.announcement||'';
-      $('drawNumber').disabled=!state.drawActive||state.drawn.length===99||busy||drawAnimationActive();
+      syncEventSettings();$('saveEventSettings').disabled=!eventSettingsDirty||busy||settingsSaving;
+      $('drawNumber').disabled=!state.drawActive||state.drawn.length===99||busy||drawAnimationActive()||celebrationPending();
       $('undoNumber').disabled=!state.drawn.length||busy;$('startDrawMode').disabled=!!state.drawActive||busy;$('stopDrawMode').disabled=!state.drawActive||busy;
       const continuous=$('continuousDraw');
       continuous.disabled=!state.drawActive||state.drawn.length===99||busy;
@@ -405,7 +481,7 @@
     if(loading||busy)return;loading=true;
     try{
       const [,p]=await Promise.all([
-        api('/state').then(s=>{state=s.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility()}),
+        api('/state').then(receiveState),
         api('/participants')
       ]);participants=p.participants||[];
       if(token){const [admin,ov]=await Promise.all([api('/admin/participants','GET',null,token),api('/admin/overview','GET',null,token)]);participants=admin.participants||participants;overview=ov||overview;}
@@ -447,7 +523,17 @@
     finally{busy=false}
     await refresh(true);
   }
-  async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility();await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
+  async function mutate(action,extra={},confirmText=''){
+    if(!token||busy||!state)return false;
+    if(confirmText&&!confirm(confirmText))return false;
+    busy=true;let success=false;
+    try{
+      const result=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);
+      receiveState(result);renderState();success=true;
+    }catch(e){message('保存できませんでした：'+e.message)}
+    finally{busy=false}
+    await refresh(true);return success;
+  }
 
   function setContinuousMode(on){
     if(on&&(!state?.drawActive||state.drawn.length>=99)){message('先に「抽選開始」を押してから連続抽選をONにしてください。');return}
@@ -462,17 +548,18 @@
     if(continuousTimer){clearTimeout(continuousTimer);continuousTimer=null}
     if(!continuousMode||!token||!state?.drawActive||state.drawn.length>=99)return;
     const lastStarted=Math.max(0,Number(state?.lastDraw?.animationUntilMs||0)-5000);
-    const base=lastStarted||Date.now();
-    const nextAt=Math.max(Date.now()+300,base+continuousIntervalSec*1000);
+    const base=lastStarted||serverNow();
+    const nextAt=Math.max(serverNow()+300,base+continuousIntervalSec*1000);
     continuousTimer=setTimeout(async()=>{
       continuousTimer=null;
       if(!continuousMode||!token||!state?.drawActive)return;
-      if(busy||drawAnimationActive()){scheduleContinuousDraw();return}
+      if(busy||drawAnimationActive()||celebrationPending()){scheduleContinuousDraw();return}
       await mutate('draw');
       if(continuousMode)scheduleContinuousDraw();
-    },Math.max(300,nextAt-Date.now()));
+    },Math.max(300,nextAt-serverNow()));
   }
   function openContinuousSettings(){
+    $('continuousSettingsMessage').textContent='';
     const input=$('continuousIntervalSec');
     if(!input||!$('continuousSettingsDialog'))return message('連続抽選設定を開けませんでした。ページを再読み込みしてください。');
     input.value=String(continuousIntervalSec);
@@ -483,7 +570,7 @@
   function saveContinuousSettings(){
     const input=$('continuousIntervalSec');
     const raw=Number(input?.value);
-    if(!Number.isFinite(raw)){message('抽選間隔を数字で入力してください。');return}
+    if(!input.value.trim()||!Number.isFinite(raw)||raw<5||raw>3600){message('抽選間隔は5〜3600秒で入力してください。');return}
     continuousIntervalSec=Math.max(5,Math.min(3600,Math.round(raw)));
     storage.set('yplus.bingo.continuous.interval.v1',String(continuousIntervalSec));
     if(input)input.value=String(continuousIntervalSec);
@@ -542,6 +629,8 @@
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);$('adminId').addEventListener('keydown',e=>{if(e.key==='Enter')login()});$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
   $('adminLogout').addEventListener('click',async()=>{setContinuousMode(false);const t=token;token='';storage.remove('yplus.bingo.admin.token.v1');$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true)});
+  ['editTitle','editAnnouncement'].forEach(id=>$(id).addEventListener('input',()=>{eventSettingsDirty=true;$('saveEventSettings').disabled=false}));
+  $('saveEventSettings').addEventListener('click',saveEventSettings);
   $('startDrawMode').addEventListener('click',async()=>{setContinuousMode(false);await mutate('draw_start')});
   $('stopDrawMode').addEventListener('click',async()=>{setContinuousMode(false);await mutate('draw_stop')});
   $('finishGame').addEventListener('click',()=>{setContinuousMode(false);mutate('finish',{},'ビンゴ大会を終了しますか？')});
@@ -561,7 +650,8 @@
 
   refresh();restoreAdminSession();
   setInterval(()=>{if(!document.hidden||miniPlayerSessionActive())refresh(true)},1000);
-  setInterval(()=>{updateDrawAnimation();renderMiniPlayer()},100);
+  setInterval(()=>{updateDrawAnimation();renderMiniPlayer();renderCelebrations()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
+
 

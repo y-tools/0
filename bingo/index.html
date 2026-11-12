@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css?v=20261113-participant-delete-6"><script defer src="./bingo.js?v=20261113-participant-delete-6"></script></head>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css?v=20261113-celebrations-settings-7"><script defer src="./bingo.js?v=20261113-celebrations-settings-7"></script></head>
 <body><div id="publicView"><header class="site-header"><a href="../" class="brand">Y<span>++</span></a><span class="section-name">SPECIAL EVENT / BINGO</span><a href="../" class="back">← HOME</a></header>
 <main>
 <section class="hero"><div class="hero-tag">✦ SPECIAL EVENT</div><h1>みんなで、<em id="adminTrigger">BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむBINGO！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
 
 <section class="layout">
-  <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong><div id="publicDrawAnimation" class="draw-animation public-draw-spectacle" hidden aria-live="assertive"><div class="draw-glow"></div><div class="draw-ring draw-ring-a"></div><div class="draw-ring draw-ring-b"></div><div class="draw-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="draw-core"><span class="draw-caption">抽選中...</span><strong>--</strong></div></div></div><div id="announcement" class="announcement"></div>
+  <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong><div id="publicDrawAnimation" class="draw-animation public-draw-spectacle" hidden aria-live="assertive"><div class="draw-glow"></div><div class="draw-ring draw-ring-a"></div><div class="draw-ring draw-ring-b"></div><div class="draw-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="draw-core"><span class="draw-caption">抽選中...</span><strong>--</strong></div></div><div id="publicCelebration" class="celebration-overlay public-celebration" hidden aria-live="polite"></div></div><div id="announcement" class="announcement"></div>
     <details class="viewer-box collapsible-panel">
       <summary><span>ビンゴカード確認</span><span class="summary-actions"><button id="miniPlayerOpen" type="button" class="mini-player-launch" hidden>▶ ミニプレイヤー</button><small>タップして開く</small></span></summary>
       <div class="collapsible-content">
@@ -33,6 +33,7 @@
 
 </main>
 <div id="miniPlayer" class="mini-player" hidden aria-live="polite">
+  <div id="miniCelebration" class="celebration-overlay mini-celebration" hidden aria-live="polite"></div>
   <div class="mini-player-head">
     <div><strong>LIVE BINGO</strong><span id="miniPlayerName">参加者未選択</span></div>
     <button id="miniPlayerClose" type="button" class="secondary" aria-label="ミニプレイヤーを閉じる">×</button>
@@ -57,15 +58,17 @@
   </div>
 </div>
 
+
+<footer>Y++ / SPECIAL EVENT · <a href="../">PORTAL</a></footer></div>
 <dialog id="continuousSettingsDialog" class="continuous-settings-dialog">
   <div class="dialog-head"><h2>連続抽選設定</h2><button id="continuousSettingsClose" type="button" class="secondary">閉じる</button></div>
-  <p class="hint">抽選演出が約5秒あるため、間隔は5秒以上で設定してください。</p>
+  <p class="hint">抽選間隔は5秒以上で設定してください。リーチ・BINGOの演出中は、10秒間の表示が終わってから次の連続抽選に進みます。</p>
   <label class="continuous-setting-field">抽選間隔（秒）<input id="continuousIntervalSec" type="number" min="5" max="3600" step="1" value="10" inputmode="numeric"></label>
   <div class="interval-presets"><button type="button" data-interval="5">5秒</button><button type="button" data-interval="10">10秒</button><button type="button" data-interval="15">15秒</button><button type="button" data-interval="30">30秒</button><button type="button" data-interval="60">60秒</button></div>
   <div id="continuousSettingsEstimate" class="continuous-settings-estimate"></div>
+  <p id="continuousSettingsMessage" class="admin-message" role="status"></p>
   <button id="saveContinuousSettings" type="button">この設定を使う</button>
 </dialog>
-<footer>Y++ / SPECIAL EVENT · <a href="../">PORTAL</a></footer></div>
 <dialog id="cardDialog"><div class="dialog-head"><h2 id="dialogTitle">ビンゴカード</h2><button id="dialogClose" type="button" class="secondary">閉じる</button></div><div id="dialogCards"></div></dialog>
 
 <dialog id="adminLoginDialog" class="admin-login-dialog">
@@ -88,9 +91,12 @@
         <div class="admin-settings">
           <label>イベント名<input id="editTitle" maxlength="60"></label>
           <label>お知らせ<textarea id="editAnnouncement" maxlength="300" rows="2"></textarea></label>
+          <button id="saveEventSettings" type="button" disabled>イベント名・お知らせを保存</button>
+          <p id="adminControlMessage" class="admin-message" role="status"></p>
           <div class="admin-buttons"><button id="startDrawMode" type="button">抽選開始</button><button id="stopDrawMode" type="button" class="secondary">抽選終了</button><button id="drawNumber" type="button" class="primary">抽選する</button><button id="continuousDraw" type="button" class="secondary" aria-pressed="false">連続抽選：OFF</button><button id="continuousSettings" type="button" class="secondary">連続抽選設定</button><button id="undoNumber" type="button" class="secondary">直前の番号を取り消す</button><button id="finishGame" type="button" class="secondary">大会終了</button><button id="resetGame" type="button" class="danger">抽選番号をリセット</button></div>
         </div>
         <div class="continuous-summary"><strong id="continuousEstimate">残り99個 · 10秒間隔 · 終了まで約16分30秒</strong></div><div id="adminDrawAnimation" class="draw-animation compact" hidden><span>抽選中...</span><strong>--</strong></div>
+        <div id="adminCelebration" class="celebration-overlay admin-celebration" hidden aria-live="polite"></div>
         <div class="history-head"><h3>抽選済み番号 <span id="adminDrawCount">0 / 99</span></h3></div>
         <div id="adminHistory" class="history admin-history" aria-live="polite"></div>
       </section>
@@ -128,4 +134,5 @@
   </main>
 </section>
 </body></html>
+
 

@@ -267,3 +267,26 @@ dialog::backdrop{background:#0009}
 .admin-card-status .delete-card{min-height:44px;font-size:11px;padding:8px 10px}
 .delete-participant{min-height:44px}
 
+
+
+/* Shared ten-second reach and bingo celebrations. */
+.celebration-overlay{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:15px;background:radial-gradient(circle at 50% 25%,#55442bfa,#10192bfa 75%);text-align:center;overflow:hidden;pointer-events:none}
+.celebration-overlay::before{content:"✦ ✧ ✦ ✧ ✦";position:absolute;inset:3%;font-size:28px;letter-spacing:15px;color:#e1bc8c88;animation:celebration-spark 1.4s ease-in-out infinite alternate}
+.celebration-kicker{position:relative;color:var(--gold);font-size:38px;line-height:1.1;letter-spacing:3px;animation:celebration-pulse .8s ease-in-out infinite alternate}
+.celebration-viewport{position:relative;width:100%;max-height:70%;overflow:hidden}
+.celebration-list{display:grid;gap:14px}
+.celebration-person{display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+.celebration-person strong{color:#fff;font-size:24px;line-height:1.25}
+.celebration-person span{color:var(--green);font-size:18px;font-weight:800}
+.public-celebration{border-radius:50%;padding:22px}
+.public-celebration .celebration-kicker{font-size:27px;letter-spacing:1px}
+.public-celebration .celebration-person strong{font-size:17px}
+.public-celebration .celebration-person span{font-size:13px}
+.public-celebration .celebration-viewport{max-height:65%}
+.mini-celebration{z-index:5}
+#miniPlayerClose{position:relative;z-index:6}
+.admin-celebration{position:relative;inset:auto;min-height:240px;max-height:320px;margin:14px 0;border-radius:18px}
+.admin-celebration .celebration-viewport{max-height:180px}
+@keyframes celebration-pulse{from{transform:scale(.96)}to{transform:scale(1.04)}}
+@keyframes celebration-spark{from{transform:translateY(-4px);opacity:.3}to{transform:translateY(8px);opacity:1}}
+@media(prefers-reduced-motion:reduce){.celebration-kicker,.celebration-overlay::before{animation:none}}

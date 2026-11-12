@@ -101,6 +101,33 @@ def admin_person(p):
 def find_person(data,pid):
     return next((p for p in data["participants"] if p.get("id")==pid),None)
 
+def card_line_counts(card,drawn):
+    numbers=card.get("numbers",[])
+    if len(numbers)!=25: return []
+    hits=set(drawn)
+    marked=[i==12 or n in hits for i,n in enumerate(numbers)]
+    lines=[[r*5+c for c in range(5)] for r in range(5)]
+    lines += [[r*5+c for r in range(5)] for c in range(5)]
+    lines += [[0,6,12,18,24],[4,8,12,16,20]]
+    return [sum(marked[i] for i in line) for line in lines]
+
+def draw_achievement_entries(people,before,after):
+    entries=[]
+    for person in people:
+        if person.get("status")!="approved": continue
+        previous=[]; current=[]
+        for card in person.get("cards",[]):
+            previous.extend(card_line_counts(card,before))
+            current.extend(card_line_counts(card,after))
+        before_bingo=previous.count(5); after_bingo=current.count(5)
+        identity={"participantId":person["id"],"name":person["name"]}
+        if after_bingo>before_bingo:
+            entries.append({**identity,"type":"bingo","bingoFrom":before_bingo+1,"bingoTo":after_bingo})
+        if any(old<4 and new==4 for old,new in zip(previous,current)):
+            entries.append({**identity,"type":"reach","reach":current.count(4)})
+    return sorted(entries,key=lambda entry:entry["type"]!="bingo")
+
+
 def change_state(state,payload):
     action=payload.get("action"); numbers=state["drawn"]
     if action=="save":
@@ -111,23 +138,31 @@ def change_state(state,payload):
     elif action in ("start","draw_start"):
         state["status"]="running"; state["drawActive"]=True
     elif action in ("pause","draw_stop"):
-        state["drawActive"]=False
+        state["drawActive"]=False; state.pop("celebrations",None)
         if state.get("status")=="waiting": state["status"]="running"
     elif action=="finish":
-        state["status"]="finished"; state["drawActive"]=False
+        state["status"]="finished"; state["drawActive"]=False; state.pop("celebrations",None)
     elif action=="draw":
         if not state.get("drawActive",False): raise Error(400,"抽選開始を押してください。")
         animation_until=int((state.get("lastDraw") or {}).get("animationUntilMs",0) or 0)
         if animation_until>int(time.time()*1000): raise Error(409,"前の抽選演出が終了してから次を抽選してください。")
         remaining=[n for n in range(1,100) if n not in numbers]
         if not remaining: raise Error(400,"すべて抽選済みです。")
+        before=list(numbers)
         picked=secrets.choice(remaining); numbers.append(picked)
-        state["lastDraw"]={"number":picked,"animationUntilMs":int(time.time()*1000)+5000}
+        now_ms=int(time.time()*1000)
+        state["lastDraw"]={"number":picked,"animationUntilMs":now_ms+5000}
+        events=[event for event in state.get("celebrations",[]) if event.get("endsAtMs",0)>now_ms]
+        entries=draw_achievement_entries(load_people()["participants"],before,numbers)
+        if entries:
+            starts_at=max([now_ms+5000]+[event["endsAtMs"] for event in events])
+            events.append({"id":"celebration-"+secrets.token_urlsafe(8),"startsAtMs":starts_at,"endsAtMs":starts_at+10000,"entries":entries})
+        state["celebrations"]=events
     elif action=="undo":
         if not numbers: raise Error(400,"取り消す番号がありません。")
-        numbers.pop(); state.pop("lastDraw",None)
+        numbers.pop(); state.pop("lastDraw",None); state.pop("celebrations",None)
     elif action=="reset":
-        state["drawn"]=[]; state["status"]="waiting"; state["drawActive"]=False; state.pop("lastDraw",None)
+        state["drawn"]=[]; state["status"]="waiting"; state["drawActive"]=False; state.pop("lastDraw",None); state.pop("celebrations",None)
     else: raise Error(400,"不正な管理操作です。")
     state["revision"]=int(state.get("revision",0))+1; state["updatedAt"]=now_text(); return state
 
@@ -176,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             if self.path=="/api/bingo/health": return self.respond(200,{"ok":True})
-            if self.path=="/api/bingo/state": return self.respond(200,{"state":load_state()})
+            if self.path=="/api/bingo/state": return self.respond(200,{"state":load_state(),"serverTimeMs":int(time.time()*1000)})
             if self.path=="/api/bingo/participants":
                 people=load_people()
                 approved=[public_person(p) for p in people["participants"] if p.get("status")=="approved"]
@@ -335,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
                     state=load_state(); rev=data.get("expectedRevision")
                     if type(rev) is not int or rev!=state.get("revision"): raise Error(409,"更新履歴が変わりました。ページを再取得してください。")
                     state=change_state(state,data); save_state(state)
-                return self.respond(200,{"state":state})
+                return self.respond(200,{"state":state,"serverTimeMs":int(time.time()*1000)})
             raise Error(404,"Not found")
         except Error as exc: return self.respond(exc.status,{"error":str(exc)})
 
@@ -350,4 +385,5 @@ def main():
     print("Y++ Bingo API on loopback",flush=True)
     ThreadingHTTPServer(("127.0.0.1",int(os.getenv("YPLUS_BINGO_PORT","8791"))),Handler).serve_forever()
 if __name__=="__main__": main()
+
 
