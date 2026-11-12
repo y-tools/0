@@ -191,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                     online=sum(1 for info in SESSIONS.values() if info.get("expiresAt",0)>=now and now-info.get("lastSeen",0)<=15)
                     me=SESSIONS.get(session,{})
                 chat=load_chat()
-                return self.respond(200,{"onlineCount":online,"name":me.get("adminId",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","messages":chat["messages"][-100:]})
+                return self.respond(200,{"onlineCount":online,"name":me.get("adminId",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","canDeleteParticipants":True,"messages":chat["messages"][-100:]})
             if self.path=="/api/bingo/admin/users":
                 session=self.check_auth()
                 with LOCK: info=SESSIONS.get(session,{})
@@ -252,10 +252,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(200,{"ok":True})
             if self.path=="/api/bingo/admin/participant":
                 self.check_auth(); pid=data.get("participantId"); action=data.get("action")
-                if not isinstance(pid,str) or action not in ("approve","reject","issue_extra"): raise Error(400,"参加者操作が不正です。")
+                if not isinstance(pid,str) or action not in ("approve","reject","issue_extra","delete_participant","delete_card"): raise Error(400,"参加者操作が不正です。")
                 with WRITE_LOCK:
                     store=load_people(); p=find_person(store,pid)
                     if not p: raise Error(404,"参加者が見つかりません。")
+                    if action=="delete_participant":
+                        expected=data.get("expectedCardIds")
+                        current=[card.get("id") for card in p.get("cards",[])]
+                        if not isinstance(expected,list) or any(not isinstance(cid,str) for cid in expected) or sorted(expected)!=sorted(current):
+                            raise Error(409,"カード構成が変わりました。一覧を確認してやり直してください。")
+                        store["participants"]=[person for person in store["participants"] if person.get("id")!=pid]
+                        save_people(store)
+                        return self.respond(200,{"ok":True,"deletedParticipantId":pid})
+                    if action=="delete_card":
+                        card_id=data.get("cardId")
+                        if not isinstance(card_id,str) or not card_id: raise Error(400,"削除するカードIDを指定してください。")
+                        cards=p.get("cards",[])
+                        if not any(card.get("id")==card_id for card in cards): raise Error(404,"カードが見つかりません。一覧を確認してください。")
+                        p["cards"]=[card for card in cards if card.get("id")!=card_id]
+                        p["updatedAt"]=now_text(); save_people(store)
+                        return self.respond(200,{"participant":admin_person(p),"deletedCardId":card_id})
                     state=load_state()
                     if action=="approve":
                         if p.get("status")=="pending":
@@ -334,3 +350,4 @@ def main():
     print("Y++ Bingo API on loopback",flush=True)
     ThreadingHTTPServer(("127.0.0.1",int(os.getenv("YPLUS_BINGO_PORT","8791"))),Handler).serve_forever()
 if __name__=="__main__": main()
+

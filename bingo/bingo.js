@@ -5,7 +5,7 @@
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
   let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(storage.get('yplus.bingo.continuous.interval.v1')||10)), miniPlayerCardIndex=0;
 
-  let miniVideoCanvas=null, miniVideoStream=null, lastStateSyncAt=0;
+  let miniVideoCanvas=null, miniVideoStream=null, lastStateSyncAt=0, dialogParticipantId='';
 
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
@@ -269,7 +269,7 @@
   }
 
 
-  function openDialog(person){$('dialogTitle').textContent=person.name+' のビンゴカード';renderPersonCards(person,$('dialogCards'));$('cardDialog').showModal();}
+  function openDialog(person){dialogParticipantId=person.id;$('dialogTitle').textContent=person.name+' のビンゴカード';renderPersonCards(person,$('dialogCards'));$('cardDialog').showModal();}
   function renderParticipants(){
     const select=$('participantSelect'), current=select.value; select.replaceChildren();
     const base=document.createElement('option');base.value='';base.textContent='参加者を選択';select.append(base);
@@ -278,6 +278,13 @@
   }
   function renderAdminPeople(){
     if(!token)return;
+    const canDelete=overview.canDeleteParticipants===true;
+    $('participantDeletionStatus').textContent=canDelete?'参加者を削除すると、その人の発行済みカードもすべて削除されます。':'削除機能は現在準備中です。';
+    const deletePersonButton=person=>{
+      const button=document.createElement('button');button.type='button';button.className='danger delete-participant';button.textContent='参加者を削除';button.disabled=!canDelete;
+      button.addEventListener('click',()=>participantAction(person.id,'delete_participant',{expectedCardIds:(person.cards||[]).map(card=>card.id)},'「'+person.name+'」と発行済みカード'+(person.cards?.length||0)+'枚を削除します。元に戻せません。削除しますか？'));
+      return button;
+    };
     const pending=$('pendingParticipants'), approved=$('approvedParticipants'); pending.replaceChildren();approved.replaceChildren();
     const pend=participants.filter(p=>p.status==='pending'||(p.status==='approved'&&Number(p.pendingExtra||0)>0));
     const ok=participants.filter(p=>p.status==='approved');
@@ -289,7 +296,7 @@
       const note=document.createElement('div');note.className='participant-card-status';note.textContent=p.status==='pending'?'新規カード申請':'追加カード申請';main.append(note);row.append(main);
       const yes=document.createElement('button');yes.textContent='承認';yes.addEventListener('click',()=>participantAction(p.id,'approve'));row.append(yes);
       const no=document.createElement('button');no.className='secondary';no.textContent='却下';no.addEventListener('click',()=>participantAction(p.id,'reject'));row.append(no);
-      pending.append(row);
+      row.append(deletePersonButton(p));pending.append(row);
     });
     if(!ok.length)approved.textContent='承認済み参加者はいません。';
     ok.forEach(p=>{
@@ -297,11 +304,17 @@
       const main=document.createElement('div');main.className='participant-main';
       const name=document.createElement('strong');name.textContent=p.name+' · '+(p.cards?.length||0)+'枚';main.append(name);
       if(!p.cards?.length){const s=document.createElement('div');s.className='participant-card-status';s.textContent='カードなし';main.append(s);}
-      else p.cards.forEach((card,i)=>{const st=lineStats(card), s=document.createElement('div');s.className='participant-card-status';s.innerHTML='CARD '+(i+1)+' · <b>BINGO '+st.bingo+'</b> / REACH '+st.reach+' / あと'+st.remaining;main.append(s);});
+      else p.cards.forEach((card,i)=>{
+        const st=lineStats(card),s=document.createElement('div');s.className='participant-card-status admin-card-status';
+        const detail=document.createElement('span');detail.textContent='CARD '+(i+1)+' · BINGO '+st.bingo+' / REACH '+st.reach+' / あと'+st.remaining;
+        const del=document.createElement('button');del.type='button';del.className='danger delete-card';del.textContent='このカードを削除';del.disabled=!canDelete||!card.id;
+        del.addEventListener('click',()=>participantAction(p.id,'delete_card',{cardId:card.id},'「'+p.name+'」のCARD '+(i+1)+'を削除します。参加者は残ります。元に戻せません。削除しますか？'));
+        s.append(detail,del);main.append(s);
+      });
       row.append(main);
       const view=document.createElement('button');view.className='secondary';view.textContent='確認';view.addEventListener('click',()=>openDialog(p));row.append(view);
       const extra=document.createElement('button');extra.textContent='追加発行';extra.addEventListener('click',()=>participantAction(p.id,'issue_extra'));row.append(extra);
-      approved.append(row);
+      row.append(deletePersonButton(p));approved.append(row);
     });
   }
   function renderHistory(rootId,countId){
@@ -386,7 +399,7 @@
     }
     renderParticipants();renderAdminPeople();renderWinners();renderPublicCards();renderChat();updateDrawAnimation();updateContinuousEstimate();
     if(state.drawActive===true)renderMiniPlayer();
-    if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
+    if($('cardDialog').open){const p=participants.find(x=>x.id===dialogParticipantId);if(p)renderPersonCards(p,$('dialogCards'));else $('cardDialog').close()}
   }
   async function refresh(silent=false){
     if(loading||busy)return;loading=true;
@@ -421,7 +434,19 @@
     catch(e){message('管理画面を開けません：'+e.message)}
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
   }
-  async function participantAction(id,action){if(!token||busy)return;busy=true;try{await api('/admin/participant','POST',{participantId:id,action},token);await refresh(true)}catch(e){message('参加者操作に失敗しました：'+e.message)}finally{busy=false}}
+  async function participantAction(id,action,extra={},confirmText=''){
+    if(!token||busy)return;
+    if(confirmText&&!confirm(confirmText))return;
+    busy=true;
+    const status=$('participantActionMessage');
+    status.textContent='処理中…';
+    try{
+      await api('/admin/participant','POST',{participantId:id,action,...extra},token);
+      status.textContent=action==='delete_participant'?'参加者と発行済みカードを削除しました。':action==='delete_card'?'カードを削除しました。':'参加者情報を更新しました。';
+    }catch(e){status.textContent='操作できませんでした：'+e.message}
+    finally{busy=false}
+    await refresh(true);
+  }
   async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility();await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
 
   function setContinuousMode(on){
@@ -539,3 +564,4 @@
   setInterval(()=>{updateDrawAnimation();renderMiniPlayer()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
+
