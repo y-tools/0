@@ -131,11 +131,29 @@
   }
   function drawAnimationActive(){return !!(state?.lastDraw&&Number(state.lastDraw.animationUntilMs)>Date.now())}
   function updateDrawAnimation(){
-    const active=drawAnimationActive(), value=active?String(1+Math.floor(Math.random()*99)).padStart(2,'0'):'';
-    ['publicDrawAnimation','adminDrawAnimation'].forEach(id=>{
-      const el=$(id);if(!el)return;el.hidden=!active;
-      if(active){const strong=el.querySelector('strong');if(strong)strong.textContent=value}
-    });
+    const active=drawAnimationActive();
+    const until=Number(state?.lastDraw?.animationUntilMs||0);
+    const remaining=Math.max(0,until-Date.now());
+    const picked=Number(state?.lastDraw?.number||state?.drawn?.at(-1)||0);
+    const reveal=active&&remaining<=900&&picked>0;
+    const rolling=String(1+Math.floor(Math.random()*99)).padStart(2,'0');
+    const value=reveal?String(picked).padStart(2,'0'):rolling;
+    const publicEl=$('publicDrawAnimation');
+    if(publicEl){
+      publicEl.hidden=!active;
+      publicEl.classList.toggle('is-final',reveal);
+      const strong=publicEl.querySelector('strong');
+      const caption=publicEl.querySelector('.draw-caption');
+      const small=publicEl.querySelector('small');
+      if(active&&strong)strong.textContent=value;
+      if(caption)caption.textContent=reveal?'決定！':'抽選中...';
+      if(small)small.textContent=reveal?'今回の番号はこちら！':'運命の番号を選んでいます';
+    }
+    const adminEl=$('adminDrawAnimation');
+    if(adminEl){
+      adminEl.hidden=!active;
+      if(active){const strong=adminEl.querySelector('strong');if(strong)strong.textContent=value}
+    }
     if(!active&&state&&$('latestNumber'))$('latestNumber').textContent=state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–';
   }
 
@@ -148,7 +166,7 @@
     $('latestNumber').textContent=drawAnimationActive()?'…':(state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–');
     renderHistory('history','drawCount');
     renderHistory('adminHistory','adminDrawCount');
-    $('applicationArea').hidden=state.status!=='waiting';
+    $('applicationArea').hidden=false;
     if(token){
       $('editTitle').value=state.title||'';$('editAnnouncement').value=state.announcement||'';
       $('drawNumber').disabled=state.status!=='running'||state.drawn.length===99||busy;
