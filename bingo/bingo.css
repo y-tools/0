@@ -173,3 +173,13 @@ dialog::backdrop{background:#0009}
 .winner-rank{display:grid;place-items:center;min-width:30px;height:30px;border-radius:50%;background:var(--gold);color:#172131;font-weight:900}
 .winner-main{min-width:0;flex:1}
 .winner-main strong{display:block;color:var(--ink);margin-bottom:3px}
+
+
+.winner-section-right{margin-top:0;padding-top:0;border-top:0}
+.winner-section-right .winner-list{max-height:34vh;overflow:auto;padding-right:2px}
+.team-chat-section{margin-top:24px;padding-top:20px;border-top:1px solid #ffffff18}
+.chat-messages.compact-chat{height:26vh;min-height:180px;max-height:280px}
+@media(max-width:780px){
+  .winner-section-right .winner-list{max-height:300px}
+  .chat-messages.compact-chat{height:220px;min-height:180px}
+}
