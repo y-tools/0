@@ -110,8 +110,8 @@
     try{
       const [s,p]=await Promise.all([api('/state'),api('/participants')]); state=s.state; participants=p.participants||[];
       if(token){const admin=await api('/admin/participants','GET',null,token);participants=admin.participants||participants}
-      renderState(); $('connection').textContent='● 共有データ接続中 · 最終確認 '+new Date().toLocaleTimeString('ja-JP');$('connection').style.color='#69e7b4';
-    }catch(e){$('connection').textContent='⚠ 同期できません：'+e.message;$('connection').style.color='#f6bd89';if(!silent)message(e.message)}
+      renderState(); const now=new Date().toLocaleTimeString('ja-JP');$('connection').textContent='● 共有データ接続中 · 最終確認 '+now;$('connection').style.color='#69e7b4';if($('adminConnection'))$('adminConnection').textContent='● 接続中 · '+now;
+    }catch(e){$('connection').textContent='⚠ 同期できません：'+e.message;$('connection').style.color='#f6bd89';if($('adminConnection'))$('adminConnection').textContent='⚠ 同期エラー';if(!silent)message(e.message)}
     finally{loading=false}
   }
   async function apply(){
@@ -124,7 +124,7 @@
   async function login(){
     const password=$('adminPassword').value;if(!password)return message('管理者パスワードを入力してください。');
     $('adminPasswordLogin').disabled=true;
-    try{const r=await api('/admin/login','POST',{password});token=r.token;$('adminControls').hidden=false;$('adminLogout').hidden=false;$('adminPasswordLogin').hidden=true;$('adminPassword').hidden=true;message('管理画面を開きました。');await refresh(true)}
+    try{const r=await api('/admin/login','POST',{password});token=r.token;$('adminLoginDialog').close();$('publicView').hidden=true;$('adminView').hidden=false;message('');await refresh(true)}
     catch(e){message('管理画面を開けません：'+e.message)}
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
   }
@@ -141,12 +141,11 @@
     finally{busy=false}
   }
 
-  const adminTrigger=$('adminTrigger'), adminSection=$('adminSection'), adminDetails=$('adminDetails');
+  const adminTrigger=$('adminTrigger');
   let adminTapCount=0, adminTapTimer=null, adminHoldTimer=null, adminHoldOpened=false;
   function openAdminPanel(){
-    adminSection.hidden=false;
-    adminDetails.open=true;
-    adminSection.scrollIntoView({behavior:'smooth',block:'start'});
+    if(!$('adminLoginDialog').open)$('adminLoginDialog').showModal();
+    setTimeout(()=>$('adminPassword').focus(),0);
   }
   adminTrigger.addEventListener('click',()=>{
     if(adminHoldOpened){adminHoldOpened=false;return}
@@ -170,8 +169,9 @@
   $('participantSelect').addEventListener('change',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);renderPersonCards(p,$('publicCards'))});
   $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p)});
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
+  $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';$('adminControls').hidden=true;$('adminLogout').hidden=true;$('adminPasswordLogin').hidden=false;$('adminPassword').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true);message('ログアウトしました。')});
+  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true);});
   $('saveEvent').addEventListener('click',()=>mutate('save',{title:$('editTitle').value.slice(0,60),announcement:$('editAnnouncement').value.slice(0,300)}));
   $('startGame').addEventListener('click',()=>mutate('start'));$('pauseGame').addEventListener('click',()=>mutate('pause'));
   $('finishGame').addEventListener('click',()=>mutate('finish',{},'ビンゴ大会を終了しますか？'));
