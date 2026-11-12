@@ -3,7 +3,7 @@
   const $=id=>document.getElementById(id);
   const API='https://153-127-64-17.sslip.io/api/bingo';
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
-  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(storage.get('yplus.bingo.continuous.interval.v1')||10));
+  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(storage.get('yplus.bingo.continuous.interval.v1')||10)), miniPlayerCardIndex=0;
 
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
@@ -109,6 +109,47 @@
     person.cards.forEach((card,i)=>section.append(makeCardElement(card,i)));
     root.append(section);
   }
+  function selectedPublicPerson(){
+    const id=$('participantSelect')?.value||'';
+    return participants.find(p=>p.id===id&&p.status==='approved')||null;
+  }
+  function renderMiniPlayer(){
+    const player=$('miniPlayer'); if(!player||player.hidden)return;
+    const person=selectedPublicPerson();
+    if(!person||!person.cards?.length){player.hidden=true;return;}
+    miniPlayerCardIndex=Math.max(0,Math.min(miniPlayerCardIndex,person.cards.length-1));
+    const card=person.cards[miniPlayerCardIndex];
+    $('miniPlayerName').textContent=person.name;
+    $('miniCardLabel').textContent='CARD '+(miniPlayerCardIndex+1)+' / '+person.cards.length;
+    $('miniPrevCard').disabled=person.cards.length<2;
+    $('miniNextCard').disabled=person.cards.length<2;
+    const root=$('miniPlayerCard');root.replaceChildren();
+    'BINGO'.split('').forEach(x=>{const el=document.createElement('div');el.className='mini-cell mini-head';el.textContent=x;root.append(el)});
+    const hits=new Set(state?.drawn||[]);
+    card.numbers.forEach((n,i)=>{const el=document.createElement('div');const mark=i===12||hits.has(n);el.className='mini-cell'+(mark?' marked':'')+(i===12?' free':'');el.textContent=i===12?'FREE':String(n);root.append(el)});
+    const stats=lineStats(card);
+    $('miniPlayerStats').textContent='BINGO '+stats.bingo+' / REACH '+stats.reach+' / あと'+stats.remaining;
+    const active=drawAnimationActive(),until=Number(state?.lastDraw?.animationUntilMs||0),remaining=Math.max(0,until-Date.now());
+    const picked=Number(state?.lastDraw?.number||state?.drawn?.at(-1)||0);
+    const reveal=active&&remaining<=900&&picked>0;
+    $('miniDrawNumber').textContent=active?(reveal?String(picked).padStart(2,'0'):String(1+Math.floor(Math.random()*99)).padStart(2,'0')):(picked?String(picked).padStart(2,'0'):'--');
+    $('miniDrawStatus').textContent=active?(reveal?'決定！':'抽選中...'):(state?.drawActive?'次の抽選待ち':'抽選停止中');
+    player.classList.toggle('is-drawing',active);
+  }
+  function openMiniPlayer(){
+    const person=selectedPublicPerson();
+    if(!person||!person.cards?.length){
+      const viewer=document.querySelector('.viewer-box');
+      if(viewer)viewer.open=true;
+      $('participantSelect')?.focus();
+      return;
+    }
+    miniPlayerCardIndex=0;
+    $('miniPlayer').hidden=false;
+    renderMiniPlayer();
+  }
+  function closeMiniPlayer(){if($('miniPlayer'))$('miniPlayer').hidden=true}
+
   function openDialog(person){$('dialogTitle').textContent=person.name+' のビンゴカード';renderPersonCards(person,$('dialogCards'));$('cardDialog').showModal();}
   function renderParticipants(){
     const select=$('participantSelect'), current=select.value; select.replaceChildren();
@@ -225,6 +266,8 @@
       if(!state.drawActive&&continuousMode)setContinuousMode(false);
     }
     renderParticipants();renderAdminPeople();renderWinners();renderPublicCards();renderChat();updateDrawAnimation();updateContinuousEstimate();
+    const miniBtn=$('miniPlayerOpen');if(miniBtn)miniBtn.hidden=!state.drawActive;
+    if(!state.drawActive)closeMiniPlayer();else renderMiniPlayer();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
@@ -317,8 +360,12 @@
   adminTrigger.addEventListener('pointerdown',startAdminHold);adminTrigger.addEventListener('pointerup',cancelAdminHold);adminTrigger.addEventListener('pointercancel',cancelAdminHold);adminTrigger.addEventListener('pointerleave',cancelAdminHold);adminTrigger.addEventListener('contextmenu',e=>e.preventDefault());
 
   $('applyCard').addEventListener('click',apply);
-  $('participantSelect').addEventListener('change',renderPublicCards);
+  $('participantSelect').addEventListener('change',()=>{miniPlayerCardIndex=0;renderPublicCards();renderMiniPlayer()});
   $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p);else renderPublicCards()});
+  $('miniPlayerOpen').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openMiniPlayer()});
+  $('miniPlayerClose').addEventListener('click',closeMiniPlayer);
+  $('miniPrevCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex-1+p.cards.length)%p.cards.length;renderMiniPlayer()});
+  $('miniNextCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex+1)%p.cards.length;renderMiniPlayer()});
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);$('adminId').addEventListener('keydown',e=>{if(e.key==='Enter')login()});$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
@@ -342,6 +389,6 @@
 
   refresh();restoreAdminSession();
   setInterval(()=>{if(!document.hidden)refresh(true)},1000);
-  setInterval(updateDrawAnimation,100);
+  setInterval(()=>{updateDrawAnimation();renderMiniPlayer()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
