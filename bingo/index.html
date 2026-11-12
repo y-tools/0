@@ -7,7 +7,7 @@
 <section class="layout">
   <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong><div id="publicDrawAnimation" class="draw-animation public-draw-spectacle" hidden aria-live="assertive"><div class="draw-glow"></div><div class="draw-ring draw-ring-a"></div><div class="draw-ring draw-ring-b"></div><div class="draw-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="draw-core"><span class="draw-caption">抽選中...</span><strong>--</strong></div></div></div><div id="announcement" class="announcement"></div>
     <details class="viewer-box collapsible-panel">
-      <summary><span>ビンゴカード確認</span><small>タップして開く</small></summary>
+      <summary><span>ビンゴカード確認</span><span class="summary-actions"><button id="miniPlayerOpen" type="button" class="mini-player-launch" hidden>▶ ミニプレイヤー</button><small>タップして開く</small></span></summary>
       <div class="collapsible-content">
         <p class="hint">参加者名を選ぶと、発行済みのビンゴカードを誰のものでも確認できます。</p>
         <div class="card-actions"><select id="participantSelect" aria-label="参加者名"><option value="">参加者を選択</option></select><button id="viewParticipant" type="button" class="secondary">確認</button></div>
@@ -32,6 +32,29 @@
 </section>
 
 </main>
+<div id="miniPlayer" class="mini-player" hidden aria-live="polite">
+  <div class="mini-player-head">
+    <div><strong>LIVE BINGO</strong><span id="miniPlayerName">参加者未選択</span></div>
+    <button id="miniPlayerClose" type="button" class="secondary" aria-label="ミニプレイヤーを閉じる">×</button>
+  </div>
+  <div class="mini-player-body">
+    <section class="mini-draw">
+      <span>DRAW NUMBER</span>
+      <strong id="miniDrawNumber">--</strong>
+      <small id="miniDrawStatus">待機中</small>
+    </section>
+    <section class="mini-card-wrap">
+      <div class="mini-card-tools">
+        <button id="miniPrevCard" type="button" class="secondary">‹</button>
+        <span id="miniCardLabel">CARD 1</span>
+        <button id="miniNextCard" type="button" class="secondary">›</button>
+      </div>
+      <div id="miniPlayerCard" class="mini-bingo-card"></div>
+      <div id="miniPlayerStats" class="mini-player-stats"></div>
+    </section>
+  </div>
+</div>
+
 <dialog id="continuousSettingsDialog" class="continuous-settings-dialog">
   <div class="dialog-head"><h2>連続抽選設定</h2><button id="continuousSettingsClose" type="button" class="secondary">閉じる</button></div>
   <p class="hint">抽選演出が約5秒あるため、間隔は5秒以上で設定してください。</p>
