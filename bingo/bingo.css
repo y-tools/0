@@ -194,3 +194,15 @@ dialog::backdrop{background:#0009}
 .interval-presets button{padding:9px 6px}
 .continuous-settings-estimate{margin:14px 0;padding:12px;border-radius:12px;background:#ffffff08;color:var(--gold);font-weight:800}
 @media(max-width:520px){.interval-presets{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+
+/* Public collapsible sections */
+.collapsible-panel{margin-top:20px;border-top:1px solid #ffffff18;padding-top:4px}
+.collapsible-panel summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;padding:14px 0;font-weight:800;color:var(--ink)}
+.collapsible-panel summary::-webkit-details-marker{display:none}
+.collapsible-panel summary::after{content:"＋";font-size:20px;color:var(--gold);margin-left:auto}
+.collapsible-panel[open] summary::after{content:"−"}
+.collapsible-panel summary small{font-size:11px;font-weight:500;color:var(--muted)}
+.collapsible-content{padding:0 0 10px}
+.history-panel .history{margin-top:8px}
+@media(max-width:780px){.collapsible-panel summary{align-items:flex-start}.collapsible-panel summary small{text-align:right}}
