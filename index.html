@@ -8,7 +8,7 @@
   <meta name="color-scheme" content="dark">
   <title>Y++ | Tools Portal</title>
   <link rel="stylesheet" href="./assets/styles.css?v=20261113-home-brand-1">
-  <link rel="stylesheet" href="./assets/profile.css">
+  <link rel="stylesheet" href="./assets/profile.css?v=20261113-home-copy-2">
   <script defer src="./assets/app.js"></script>
   <script defer src="./assets/profile.js"></script>
 </head>
@@ -49,9 +49,9 @@
       </section>
 
 
-      <section class="special-bingo-banner" aria-label="特設ビンゴゲーム">
+      <section class="special-bingo-banner" aria-label="みんなでBINGO開催中">
         <a class="special-bingo-link" href="./bingo/">
-          <span class="special-bingo-copy"><small>✦ Y++ SPECIAL EVENT</small><strong>特設ビンゴゲーム <span aria-hidden="true">✧</span></strong><span>みんなで参加！ 抽選番号は全員共通。ビンゴに挑戦しよう。</span></span>
+          <span class="special-bingo-copy"><small>✦ Y++ SPECIAL EVENT</small><strong>みんなでBINGO開催中 <span aria-hidden="true">✧</span></strong><span>みんなで参加して、BINGOに挑戦しよう</span></span>
           <span class="special-bingo-action">参加する ↗</span>
         </a>
       </section>
@@ -87,11 +87,12 @@
         </div>
         <div class="profile-card text-only-profile">
           
-          <div class="profile-content">
-            <div class="profile-kicker" id="profileHandle">CREATOR / STREAMING TOOLS</div>
-            <button id="profileTap" class="profile-tap" type="button" aria-label="プロフィールを表示"><span id="profileName">Y++</span></button>
-            <p class="profile-statement" id="profileStatement">やりたいことを、使えるカタチに。</p>
-            <p class="profile-description" id="profileDescription">配信をもっと自由に。制作をもっと楽しく。</p>
+          <p class="profile-editing-message" role="status">編集中</p>
+          <div class="profile-content" hidden>
+            <div class="profile-kicker" id="profileHandle"></div>
+            <button id="profileTap" class="profile-tap" type="button" aria-label="プロフィールを表示"><span id="profileName"></span></button>
+            <p class="profile-statement" id="profileStatement"></p>
+            <p class="profile-description" id="profileDescription"></p>
             <div id="profileBlocks" class="profile-blocks"></div>
             <div id="profileLinks" class="profile-links"></div>
           </div>

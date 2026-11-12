@@ -46,3 +46,5 @@
 .profile-editor-status:empty{display:none}
 @media(min-width:700px){.profile-card.text-only-profile .profile-content{padding:35px 40px}.editor-pane{padding:18px}.editor-pane h3{top:-18px;font-size:15px}.editor-preview{font-size:13px}.editor-preview strong{font-size:24px}}
 @media(max-width:430px){.profile-editor-dialog{width:calc(100vw - 8px);height:96dvh;max-height:96dvh;border-radius:13px}.profile-editor-head{padding:10px 12px}.profile-editor-head h2{font-size:17px}.profile-editor-grid{gap:5px;padding:5px}.editor-pane{padding:9px 7px;border-radius:8px}.editor-pane h3{top:-9px;font-size:11px;padding-bottom:8px}.editor-block-item{padding:7px}.editor-preview strong{font-size:16px}.profile-editor-footer{gap:5px;padding:6px}.profile-editor-footer .editor-hint{font-size:9px}.profile-primary,.profile-secondary{padding:9px;font-size:11px}.profile-login-form{padding:18px 14px}}
+
+.profile-editing-message{margin:0;padding:28px 23px;color:#a4adbc;text-align:center;font-size:14px}
