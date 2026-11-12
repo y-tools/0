@@ -43,6 +43,17 @@
     if(!person||!person.cards?.length){const p=document.createElement('p');p.className='hint';p.textContent='発行済みカードはありません。';target.append(p);return}
     person.cards.forEach((card,i)=>target.append(makeCardElement(card,i)));
   }
+  function renderPublicCards(){
+    const root=$('publicCards'); root.replaceChildren();
+    const approved=participants.filter(p=>p.status==='approved'&&p.cards?.length);
+    if(!approved.length){const p=document.createElement('p');p.className='hint';p.textContent='発行済みカードはありません。';root.append(p);return}
+    approved.forEach(person=>{
+      const section=document.createElement('section');section.className='public-person';
+      const title=document.createElement('h3');title.textContent=person.name+'（'+person.cards.length+'枚）';section.append(title);
+      person.cards.forEach((card,i)=>section.append(makeCardElement(card,i)));
+      root.append(section);
+    });
+  }
   function openDialog(person){
     $('dialogTitle').textContent=person.name+' のビンゴカード';
     renderPersonCards(person,$('dialogCards'));
@@ -91,9 +102,7 @@
       $('drawNumber').disabled=state.status!=='running'||state.drawn.length===75||busy;
       $('undoNumber').disabled=!state.drawn.length||busy;
     }
-    renderParticipants(); renderAdminPeople();
-    const selected=participants.find(p=>p.id===$('participantSelect').value);
-    if(selected)renderPersonCards(selected,$('publicCards'));
+    renderParticipants(); renderAdminPeople(); renderPublicCards();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
