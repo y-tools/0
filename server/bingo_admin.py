@@ -108,11 +108,17 @@ def change_state(state,payload):
         if not isinstance(title,str) or not 1<=len(title.strip())<=60: raise Error(400,"イベント名は1〜60文字で入力してください。")
         if not isinstance(announcement,str) or len(announcement)>300: raise Error(400,"お知らせは300文字以内で入力してください。")
         state["title"]=title.strip(); state["announcement"]=announcement
-    elif action=="start": state["status"]="running"
-    elif action=="pause": state["status"]="paused"
-    elif action=="finish": state["status"]="finished"
+    elif action in ("start","draw_start"):
+        state["status"]="running"; state["drawActive"]=True
+    elif action in ("pause","draw_stop"):
+        state["drawActive"]=False
+        if state.get("status")=="waiting": state["status"]="running"
+    elif action=="finish":
+        state["status"]="finished"; state["drawActive"]=False
     elif action=="draw":
-        if state.get("status")!="running": raise Error(400,"ゲームを開始してください。")
+        if not state.get("drawActive",False): raise Error(400,"抽選開始を押してください。")
+        animation_until=int((state.get("lastDraw") or {}).get("animationUntilMs",0) or 0)
+        if animation_until>int(time.time()*1000): raise Error(409,"前の抽選演出が終了してから次を抽選してください。")
         remaining=[n for n in range(1,100) if n not in numbers]
         if not remaining: raise Error(400,"すべて抽選済みです。")
         picked=secrets.choice(remaining); numbers.append(picked)
@@ -121,7 +127,7 @@ def change_state(state,payload):
         if not numbers: raise Error(400,"取り消す番号がありません。")
         numbers.pop(); state.pop("lastDraw",None)
     elif action=="reset":
-        state["drawn"]=[]; state["status"]="waiting"; state.pop("lastDraw",None)
+        state["drawn"]=[]; state["status"]="waiting"; state["drawActive"]=False; state.pop("lastDraw",None)
     else: raise Error(400,"不正な管理操作です。")
     state["revision"]=int(state.get("revision",0))+1; state["updatedAt"]=now_text(); return state
 
