@@ -2,14 +2,15 @@
 (() => {
   const $=id=>document.getElementById(id);
   const API='https://153-127-64-17.sslip.io/api/bingo';
-  let state=null, token='', participants=[], busy=false, loading=false;
+  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false;
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
     if(!id){id='dev-'+crypto.randomUUID();storage.set('yplus.bingo.device.v1',id)}
     return id;
   }
-  function message(s){$('adminMessage').textContent=s}
+  function message(s){if($('adminMessage'))$('adminMessage').textContent=s}
   async function api(path,method='GET',body=null,accessToken=''){
     const ctl=new AbortController(), timer=setTimeout(()=>ctl.abort(),15000);
     try{
@@ -19,19 +20,25 @@
       return data;
     } finally {clearTimeout(timer)}
   }
-  function statusCounts(card){
-    if(!state||!card||!Array.isArray(card.numbers))return {bingo:0,reach:0};
+
+  function lineStats(card){
+    if(!state||!card||!Array.isArray(card.numbers))return {bingo:0,reach:0,remaining:5};
     const hits=new Set(state.drawn), marked=card.numbers.map((n,i)=>i===12||hits.has(n));
     const lines=[];
     for(let r=0;r<5;r++)lines.push([0,1,2,3,4].map(c=>r*5+c));
     for(let c=0;c<5;c++)lines.push([0,1,2,3,4].map(r=>r*5+c));
     lines.push([0,6,12,18,24],[4,8,12,16,20]);
-    return {bingo:lines.filter(l=>l.every(i=>marked[i])).length,reach:lines.filter(l=>l.filter(i=>marked[i]).length===4).length};
+    const counts=lines.map(l=>l.filter(i=>marked[i]).length);
+    return {
+      bingo:counts.filter(n=>n===5).length,
+      reach:counts.filter(n=>n===4).length,
+      remaining:Math.min(...counts.map(n=>5-n))
+    };
   }
   function makeCardElement(card,index){
     const wrap=document.createElement('section'); wrap.className='issued-card';
     const head=document.createElement('div'); head.className='issued-card-head';
-    const counts=statusCounts(card); head.textContent='CARD '+(index+1)+' · BINGO '+counts.bingo+' / REACH '+counts.reach; wrap.append(head);
+    const counts=lineStats(card); head.textContent='CARD '+(index+1)+' · BINGO '+counts.bingo+' / REACH '+counts.reach+' / あと'+counts.remaining; wrap.append(head);
     const grid=document.createElement('div'); grid.className='bingo-card';
     'BINGO'.split('').forEach(x=>{const el=document.createElement('div');el.className='bingo-cell head';el.textContent=x;grid.append(el)});
     const hits=new Set(state?state.drawn:[]);
@@ -68,57 +75,114 @@
   function renderAdminPeople(){
     if(!token)return;
     const pending=$('pendingParticipants'), approved=$('approvedParticipants'); pending.replaceChildren();approved.replaceChildren();
-    const pend=participants.filter(p=>p.status==='pending'), ok=participants.filter(p=>p.status==='approved');
+    const pend=participants.filter(p=>p.status==='pending'||(p.status==='approved'&&Number(p.pendingExtra||0)>0));
+    const ok=participants.filter(p=>p.status==='approved');
     if(!pend.length)pending.textContent='申請待ちはありません。';
     pend.forEach(p=>{
       const row=document.createElement('div');row.className='participant-row';
-      const name=document.createElement('strong');name.textContent=p.name;row.append(name);
-      const yes=document.createElement('button');yes.textContent='承認して発行';yes.addEventListener('click',()=>participantAction(p.id,'approve'));row.append(yes);
+      const main=document.createElement('div');main.className='participant-main';
+      const name=document.createElement('strong');name.textContent=p.name;main.append(name);
+      const note=document.createElement('div');note.className='participant-card-status';note.textContent=p.status==='pending'?'新規カード申請':'追加カード申請';main.append(note);row.append(main);
+      const yes=document.createElement('button');yes.textContent='承認';yes.addEventListener('click',()=>participantAction(p.id,'approve'));row.append(yes);
       const no=document.createElement('button');no.className='secondary';no.textContent='却下';no.addEventListener('click',()=>participantAction(p.id,'reject'));row.append(no);
       pending.append(row);
     });
     if(!ok.length)approved.textContent='承認済み参加者はいません。';
     ok.forEach(p=>{
       const row=document.createElement('div');row.className='participant-row';
-      const name=document.createElement('strong');name.textContent=p.name+' · '+(p.cards?.length||0)+'枚';row.append(name);
+      const main=document.createElement('div');main.className='participant-main';
+      const name=document.createElement('strong');name.textContent=p.name+' · '+(p.cards?.length||0)+'枚';main.append(name);
+      if(!p.cards?.length){
+        const s=document.createElement('div');s.className='participant-card-status';s.textContent='カードなし';main.append(s);
+      }else{
+        p.cards.forEach((card,i)=>{
+          const st=lineStats(card), s=document.createElement('div');s.className='participant-card-status';
+          s.innerHTML='CARD '+(i+1)+' · <b>BINGO '+st.bingo+'</b> / REACH '+st.reach+' / あと'+st.remaining;
+          main.append(s);
+        });
+      }
+      row.append(main);
       const view=document.createElement('button');view.className='secondary';view.textContent='確認';view.addEventListener('click',()=>openDialog(p));row.append(view);
       const extra=document.createElement('button');extra.textContent='追加発行';extra.addEventListener('click',()=>participantAction(p.id,'issue_extra'));row.append(extra);
       approved.append(row);
     });
   }
+  function renderHistory(rootId,countId){
+    const root=$(rootId); if(!root)return;
+    const hits=new Set(state?.drawn||[]);root.replaceChildren();
+    for(let n=1;n<=99;n++){const el=document.createElement('span');el.className='ball'+(hits.has(n)?' hit':'');el.textContent=String(n).padStart(2,'0');root.append(el)}
+    if($(countId))$(countId).textContent=(state?.drawn?.length||0)+' / 99';
+  }
+  function renderChat(){
+    if(!$('adminOnlineCount'))return;
+    $('adminOnlineCount').textContent=Number(overview.onlineCount||0)+'人ログイン中';
+    if(overview.name&&!$('adminChatName').value)$('adminChatName').value=overview.name;
+    $('chatNameStatus').textContent=overview.name?'現在の名前：'+overview.name:'最初に名前を設定してください。';
+    const root=$('adminChatMessages'), shouldStick=root.scrollTop+root.clientHeight>=root.scrollHeight-40;root.replaceChildren();
+    (overview.messages||[]).forEach(m=>{
+      const row=document.createElement('div');row.className='chat-message';
+      const head=document.createElement('div');head.className='chat-message-head';
+      const name=document.createElement('strong');name.textContent=m.name||'運営';head.append(name);
+      const time=document.createElement('span');const d=new Date(m.createdAt);time.textContent=Number.isNaN(d.getTime())?'':d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});head.append(time);
+      const body=document.createElement('div');body.textContent=m.message||'';row.append(head,body);root.append(row);
+    });
+    if(shouldStick)root.scrollTop=root.scrollHeight;
+  }
+  function drawAnimationActive(){return !!(state?.lastDraw&&Number(state.lastDraw.animationUntilMs)>Date.now())}
+  function updateDrawAnimation(){
+    const active=drawAnimationActive(), value=active?String(1+Math.floor(Math.random()*99)).padStart(2,'0'):'';
+    ['publicDrawAnimation','adminDrawAnimation'].forEach(id=>{
+      const el=$(id);if(!el)return;el.hidden=!active;
+      if(active){const strong=el.querySelector('strong');if(strong)strong.textContent=value}
+    });
+    if(!active&&state&&$('latestNumber'))$('latestNumber').textContent=state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–';
+  }
+
   function renderState(){
     if(!state)return;
     $('eventTitle').textContent=state.title||'Y++ 特設ビンゴ';
-    $('eventDescription').textContent=state.description||'参加者みんなで楽しむ、75球のビンゴ！';
+    $('eventDescription').textContent=state.description||'参加者みんなで楽しむ、99球のビンゴ！';
     $('announcement').textContent=state.announcement||'';
     $('gameStatus').textContent=({waiting:'準備中',running:'開催中',paused:'一時停止',finished:'終了'})[state.status]||'準備中';
-    $('latestNumber').textContent=state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–';
-    $('drawCount').textContent=state.drawn.length+' / 75';
-    const hits=new Set(state.drawn),root=$('history');root.replaceChildren();
-    for(let n=1;n<=75;n++){const el=document.createElement('span');el.className='ball'+(hits.has(n)?' hit':'');el.textContent=String(n).padStart(2,'0');root.append(el)}
+    $('latestNumber').textContent=drawAnimationActive()?'…':(state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–');
+    renderHistory('history','drawCount');
+    renderHistory('adminHistory','adminDrawCount');
     $('applicationArea').hidden=state.status!=='waiting';
     if(token){
       $('editTitle').value=state.title||'';$('editAnnouncement').value=state.announcement||'';
-      $('drawNumber').disabled=state.status!=='running'||state.drawn.length===75||busy;
+      $('drawNumber').disabled=state.status!=='running'||state.drawn.length===99||busy;
       $('undoNumber').disabled=!state.drawn.length||busy;
     }
-    renderParticipants(); renderAdminPeople(); renderPublicCards();
+    renderParticipants(); renderAdminPeople(); renderPublicCards(); renderChat(); updateDrawAnimation();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
     if(loading||busy)return;loading=true;
     try{
       const [s,p]=await Promise.all([api('/state'),api('/participants')]); state=s.state; participants=p.participants||[];
-      if(token){const admin=await api('/admin/participants','GET',null,token);participants=admin.participants||participants}
-      renderState(); const now=new Date().toLocaleTimeString('ja-JP');$('connection').textContent='● 共有データ接続中 · 最終確認 '+now;$('connection').style.color='#69e7b4';if($('adminConnection'))$('adminConnection').textContent='● 接続中 · '+now;
-    }catch(e){$('connection').textContent='⚠ 同期できません：'+e.message;$('connection').style.color='#f6bd89';if($('adminConnection'))$('adminConnection').textContent='⚠ 同期エラー';if(!silent)message(e.message)}
-    finally{loading=false}
+      if(token){
+        const [admin,ov]=await Promise.all([api('/admin/participants','GET',null,token),api('/admin/overview','GET',null,token)]);
+        participants=admin.participants||participants;overview=ov||overview;
+      }
+      renderState();
+      const now=new Date().toLocaleTimeString('ja-JP');
+      $('connection').textContent='● 共有データ接続中 · 最終確認 '+now;$('connection').style.color='#69e7b4';
+      if($('adminConnection'))$('adminConnection').textContent='● 接続中 · '+now;
+    }catch(e){
+      $('connection').textContent='⚠ 同期できません：'+e.message;$('connection').style.color='#f6bd89';
+      if($('adminConnection'))$('adminConnection').textContent='⚠ 同期エラー';
+      if(!silent)message(e.message)
+    } finally {loading=false}
   }
+
   async function apply(){
     const name=$('playerName').value.trim(); if(!name)return $('applicationMessage').textContent='REALITY上の名前を入力してください。';
     $('applyCard').disabled=true;
-    try{await api('/apply','POST',{name,deviceId:deviceId()});$('applicationMessage').textContent='申請しました。管理者の承認をお待ちください。';$('playerName').value='';await refresh(true)}
-    catch(e){$('applicationMessage').textContent='申請できませんでした：'+e.message}
+    try{
+      const r=await api('/apply','POST',{name,deviceId:deviceId()});
+      $('applicationMessage').textContent=r.additional?'追加カードを申請しました。管理者の承認をお待ちください。':'申請しました。管理者の承認をお待ちください。';
+      $('playerName').value='';await refresh(true)
+    }catch(e){$('applicationMessage').textContent='申請できませんでした：'+e.message}
     finally{$('applyCard').disabled=false}
   }
   async function login(){
@@ -130,15 +194,27 @@
   }
   async function participantAction(id,action){
     if(!token||busy)return;busy=true;
-    try{await api('/admin/participant','POST',{participantId:id,action},token);message(action==='approve'?'カードを発行しました。':action==='reject'?'申請を却下しました。':'追加カードを発行しました。');await refresh(true)}
+    try{await api('/admin/participant','POST',{participantId:id,action},token);await refresh(true)}
     catch(e){message('参加者操作に失敗しました：'+e.message)}
     finally{busy=false}
   }
   async function mutate(action,extra={},confirmText=''){
     if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;
-    try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;message('VPSへ保存しました。');await refresh(true)}
+    try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;await refresh(true)}
     catch(e){message('保存できませんでした：'+e.message);await refresh(true)}
     finally{busy=false}
+  }
+  async function saveChatName(){
+    const name=$('adminChatName').value.trim();if(!name)return;
+    try{const r=await api('/admin/name','POST',{name},token);overview.name=r.name;$('chatNameStatus').textContent='現在の名前：'+r.name;await refresh(true)}
+    catch(e){$('chatNameStatus').textContent='名前を設定できませんでした：'+e.message}
+  }
+  async function sendChat(){
+    const input=$('adminChatInput'), text=input.value.trim();if(!text)return;
+    $('sendAdminChat').disabled=true;
+    try{await api('/admin/chat','POST',{message:text},token);input.value='';await refresh(true)}
+    catch(e){$('chatNameStatus').textContent='送信できませんでした：'+e.message}
+    finally{$('sendAdminChat').disabled=false}
   }
 
   const adminTrigger=$('adminTrigger');
@@ -149,34 +225,41 @@
   }
   adminTrigger.addEventListener('click',()=>{
     if(adminHoldOpened){adminHoldOpened=false;return}
-    adminTapCount++;
-    clearTimeout(adminTapTimer);
+    adminTapCount++;clearTimeout(adminTapTimer);
     if(adminTapCount>=5){adminTapCount=0;openAdminPanel();return}
     adminTapTimer=setTimeout(()=>{adminTapCount=0},1800);
   });
-  const startAdminHold=()=>{
-    adminHoldOpened=false;
-    clearTimeout(adminHoldTimer);
-    adminHoldTimer=setTimeout(()=>{adminHoldOpened=true;adminTapCount=0;openAdminPanel()},3000);
-  };
+  const startAdminHold=()=>{adminHoldOpened=false;clearTimeout(adminHoldTimer);adminHoldTimer=setTimeout(()=>{adminHoldOpened=true;adminTapCount=0;openAdminPanel()},3000)};
   const cancelAdminHold=()=>{clearTimeout(adminHoldTimer)};
   adminTrigger.addEventListener('pointerdown',startAdminHold);
   adminTrigger.addEventListener('pointerup',cancelAdminHold);
   adminTrigger.addEventListener('pointercancel',cancelAdminHold);
   adminTrigger.addEventListener('pointerleave',cancelAdminHold);
   adminTrigger.addEventListener('contextmenu',e=>{e.preventDefault()});
+
   $('applyCard').addEventListener('click',apply);
   $('participantSelect').addEventListener('change',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);renderPersonCards(p,$('publicCards'))});
   $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p)});
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
-  $('adminPasswordLogin').addEventListener('click',login);$('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true);});
+  $('adminPasswordLogin').addEventListener('click',login);
+  $('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true)});
   $('saveEvent').addEventListener('click',()=>mutate('save',{title:$('editTitle').value.slice(0,60),announcement:$('editAnnouncement').value.slice(0,300)}));
-  $('startGame').addEventListener('click',()=>mutate('start'));$('pauseGame').addEventListener('click',()=>mutate('pause'));
+  $('startGame').addEventListener('click',()=>mutate('start'));
+  $('pauseGame').addEventListener('click',()=>mutate('pause'));
   $('finishGame').addEventListener('click',()=>mutate('finish',{},'ビンゴ大会を終了しますか？'));
-  $('drawNumber').addEventListener('click',()=>mutate('draw'));$('undoNumber').addEventListener('click',()=>mutate('undo',{},'最後の抽選番号を取り消しますか？'));
+  $('drawNumber').addEventListener('click',()=>mutate('draw'));
+  $('undoNumber').addEventListener('click',()=>mutate('undo',{},'最後の抽選番号を取り消しますか？'));
   $('resetGame').addEventListener('click',()=>mutate('reset',{},'抽選番号をすべてリセットしますか？ 発行済みカードは保持されます。'));
+  $('saveChatName').addEventListener('click',saveChatName);
+  $('adminChatName').addEventListener('keydown',e=>{if(e.key==='Enter')saveChatName()});
+  $('sendAdminChat').addEventListener('click',sendChat);
+  $('adminChatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
   window.addEventListener('pagehide',()=>{token=''});
-  refresh();setInterval(()=>{if(!document.hidden)refresh(true)},1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
+
+  refresh();
+  setInterval(()=>{if(!document.hidden)refresh(true)},1000);
+  setInterval(updateDrawAnimation,100);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
