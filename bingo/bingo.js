@@ -277,10 +277,24 @@
     participants.filter(p=>p.status==='approved').forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name+(p.cards?.length>1?'（'+p.cards.length+'枚）':'');select.append(o)});
     if([...select.options].some(o=>o.value===current))select.value=current;
   }
+  let adminPeopleRenderKey='';
   function renderAdminPeople(){
     if(!token)return;
+    const renderKey=JSON.stringify([participants,state?.drawn,overview.canDeleteParticipants]);
+    if(renderKey===adminPeopleRenderKey)return;
+    adminPeopleRenderKey=renderKey;
+    const openMenus=new Set([...document.querySelectorAll('.participant-menu[open]')].map(menu=>menu.dataset.menuId));
     const canDelete=overview.canDeleteParticipants===true;
-    $('participantDeletionStatus').textContent=canDelete?'参加者を削除すると、その人の発行済みカードもすべて削除されます。':'削除機能は現在準備中です。';
+    const makeMenu=(person,kind)=>{
+      const menu=document.createElement('details');menu.className='participant-menu';menu.setAttribute('name','participant-actions');menu.dataset.menuId=kind+':'+person.id;menu.open=openMenus.has(menu.dataset.menuId);
+      const summary=document.createElement('summary');summary.textContent='操作';summary.setAttribute('aria-label',person.name+'の操作メニュー');
+      const actions=document.createElement('div');actions.className='participant-actions';actions.setAttribute('role','group');actions.setAttribute('aria-label',person.name+'の操作');
+      menu.append(summary,actions);
+      menu.addEventListener('toggle',()=>{if(menu.open)document.querySelectorAll('.participant-menu[open]').forEach(other=>{if(other!==menu)other.open=false})});
+      menu.addEventListener('click',event=>{if(event.target.closest('button'))menu.open=false});
+      return {menu,actions};
+    };
+    $('participantDeletionStatus').textContent=canDelete?'':'削除機能は現在準備中です。';
     const deletePersonButton=person=>{
       const button=document.createElement('button');button.type='button';button.className='danger delete-participant';button.textContent='参加者を削除';button.disabled=!canDelete;
       button.addEventListener('click',()=>participantAction(person.id,'delete_participant',{expectedCardIds:(person.cards||[]).map(card=>card.id)},'「'+person.name+'」と発行済みカード'+(person.cards?.length||0)+'枚を削除します。元に戻せません。削除しますか？'));
@@ -291,31 +305,35 @@
     const ok=participants.filter(p=>p.status==='approved');
     if(!pend.length)pending.textContent='申請待ちはありません。';
     pend.forEach(p=>{
-      const row=document.createElement('div');row.className='participant-row';
+      const row=document.createElement('div');row.className='participant-row participant-record';
       const main=document.createElement('div');main.className='participant-main';
-      const name=document.createElement('strong');name.textContent=p.name;main.append(name);
+      const {menu,actions}=makeMenu(p,'pending');
+      const header=document.createElement('div');header.className='participant-record-head';
+      const name=document.createElement('strong');name.textContent=p.name;header.append(name,menu);main.append(header);
       const note=document.createElement('div');note.className='participant-card-status';note.textContent=p.status==='pending'?'新規カード申請':'追加カード申請';main.append(note);row.append(main);
-      const yes=document.createElement('button');yes.textContent='承認';yes.addEventListener('click',()=>participantAction(p.id,'approve'));row.append(yes);
-      const no=document.createElement('button');no.className='secondary';no.textContent='却下';no.addEventListener('click',()=>participantAction(p.id,'reject'));row.append(no);
-      row.append(deletePersonButton(p));pending.append(row);
+      const yes=document.createElement('button');yes.textContent='承認';yes.addEventListener('click',()=>participantAction(p.id,'approve'));actions.append(yes);
+      const no=document.createElement('button');no.className='secondary';no.textContent='却下';no.addEventListener('click',()=>participantAction(p.id,'reject'));actions.append(no);
+      actions.append(deletePersonButton(p));pending.append(row);
     });
     if(!ok.length)approved.textContent='承認済み参加者はいません。';
     ok.forEach(p=>{
-      const row=document.createElement('div');row.className='participant-row';
+      const row=document.createElement('div');row.className='participant-row participant-record';
       const main=document.createElement('div');main.className='participant-main';
-      const name=document.createElement('strong');name.textContent=p.name+' · '+(p.cards?.length||0)+'枚';main.append(name);
+      const {menu,actions}=makeMenu(p,'approved');
+      const header=document.createElement('div');header.className='participant-record-head';
+      const name=document.createElement('strong');name.textContent=p.name+' · '+(p.cards?.length||0)+'枚';header.append(name,menu);main.append(header);
+      const view=document.createElement('button');view.type='button';view.className='secondary';view.textContent='カード確認';view.addEventListener('click',()=>openDialog(p));actions.append(view);
+      const extra=document.createElement('button');extra.type='button';extra.textContent='追加発行';extra.addEventListener('click',()=>participantAction(p.id,'issue_extra'));actions.append(extra);
       if(!p.cards?.length){const s=document.createElement('div');s.className='participant-card-status';s.textContent='カードなし';main.append(s);}
       else p.cards.forEach((card,i)=>{
         const st=lineStats(card),s=document.createElement('div');s.className='participant-card-status admin-card-status';
         const detail=document.createElement('span');detail.textContent='CARD '+(i+1)+' · BINGO '+st.bingo+' / REACH '+st.reach+' / あと'+st.remaining;
-        const del=document.createElement('button');del.type='button';del.className='danger delete-card';del.textContent='このカードを削除';del.disabled=!canDelete||!card.id;
+        const del=document.createElement('button');del.type='button';del.className='danger delete-card';del.textContent='CARD '+(i+1)+'を削除';del.disabled=!canDelete||!card.id;
         del.addEventListener('click',()=>participantAction(p.id,'delete_card',{cardId:card.id},'「'+p.name+'」のCARD '+(i+1)+'を削除します。参加者は残ります。元に戻せません。削除しますか？'));
-        s.append(detail,del);main.append(s);
+        s.append(detail);main.append(s);actions.append(del);
       });
       row.append(main);
-      const view=document.createElement('button');view.className='secondary';view.textContent='確認';view.addEventListener('click',()=>openDialog(p));row.append(view);
-      const extra=document.createElement('button');extra.textContent='追加発行';extra.addEventListener('click',()=>participantAction(p.id,'issue_extra'));row.append(extra);
-      row.append(deletePersonButton(p));approved.append(row);
+      actions.append(deletePersonButton(p));approved.append(row);
     });
   }
   function renderHistory(rootId,countId){
@@ -609,6 +627,8 @@
   const startAdminHold=()=>{adminHoldOpened=false;clearTimeout(adminHoldTimer);adminHoldTimer=setTimeout(()=>{adminHoldOpened=true;adminTapCount=0;openAdminPanel()},3000)},cancelAdminHold=()=>clearTimeout(adminHoldTimer);
   adminTrigger.addEventListener('pointerdown',startAdminHold);adminTrigger.addEventListener('pointerup',cancelAdminHold);adminTrigger.addEventListener('pointercancel',cancelAdminHold);adminTrigger.addEventListener('pointerleave',cancelAdminHold);adminTrigger.addEventListener('contextmenu',e=>e.preventDefault());
 
+  document.addEventListener('click',event=>{if(!event.target.closest('.participant-menu'))document.querySelectorAll('.participant-menu[open]').forEach(menu=>{menu.open=false})});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.participant-menu[open]').forEach(menu=>{menu.open=false})});
   $('applyCard').addEventListener('click',apply);
   $('participantSelect').addEventListener('change',()=>{miniPlayerCardIndex=0;renderPublicCards();renderMiniPlayer()});
   $('publicCards').addEventListener('click',e=>{
@@ -662,6 +682,7 @@
   setInterval(()=>{updateDrawAnimation();renderMiniPlayer();renderCelebrations()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
+
 
 
 

@@ -298,3 +298,25 @@ dialog::backdrop{background:#0009}
 .live-badge.is-offair{color:var(--muted);background:#ffffff08}
 #toggleLiveState[aria-pressed="true"]{background:#9e3e45;color:#fff}
 
+
+/* Compact participant records; actions float without expanding the list. */
+#approvedParticipants,#pendingParticipants{gap:6px}
+.admin-center{min-height:0}
+#participantActionMessage:empty,#participantDeletionStatus:empty{display:none}
+#approvedParticipants{margin:6px 0 0}
+.participant-row.participant-record{display:block;padding:6px 9px;min-width:0}
+.participant-record .participant-main{min-width:0;width:100%}
+.participant-record-head{display:flex;align-items:center;gap:8px;min-width:0}
+.participant-record-head>strong{flex:1;min-width:0;margin:0;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.participant-record .participant-card-status{font-size:11px;line-height:1.5}
+.participant-record .admin-card-status{display:block;margin:0;padding:1px 0;border:0}
+.participant-menu{position:relative;flex:none}
+.participant-menu summary{display:flex;align-items:center;justify-content:center;gap:5px;min-height:32px;min-width:60px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:#303d50;color:#fff;font-size:12px;font-weight:800;cursor:pointer;list-style:none;white-space:nowrap}
+.participant-menu summary::-webkit-details-marker{display:none}
+.participant-menu summary::after{content:"▾";font-size:10px}
+.participant-menu[open] summary{border-color:var(--gold)}
+.participant-actions{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:grid;gap:5px;width:190px;max-width:calc(100vw - 60px);max-height:min(340px,65dvh);overflow:auto;padding:7px;border:1px solid var(--line);border-radius:10px;background:#172131;box-shadow:0 10px 30px #0009}
+.participant-actions button,.participant-actions .delete-card,.participant-actions .delete-participant{display:block;flex:none;width:100%;min-height:34px;margin:0;padding:6px 10px;text-align:left;font-size:12px;white-space:nowrap}
+.participant-actions .delete-participant{border-top:1px solid #ffffff20}
+@media(pointer:coarse){.participant-menu summary,.participant-actions button,.participant-actions .delete-card,.participant-actions .delete-participant{min-height:44px}}
+
