@@ -206,3 +206,38 @@ dialog::backdrop{background:#0009}
 .collapsible-content{padding:0 0 10px}
 .history-panel .history{margin-top:8px}
 @media(max-width:780px){.collapsible-panel summary{align-items:flex-start}.collapsible-panel summary small{text-align:right}}
+
+
+/* Listener mini player */
+.summary-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.mini-player-launch{padding:6px 9px;font-size:11px;border-radius:999px;background:var(--green);color:#102019;white-space:nowrap}
+.mini-player{position:fixed;right:18px;bottom:18px;z-index:120;width:min(94vw,620px);border:1px solid #ffffff2b;border-radius:18px;background:#0b1019f5;box-shadow:0 18px 60px #000a;backdrop-filter:blur(14px);overflow:hidden}
+.mini-player-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #ffffff18}
+.mini-player-head>div{display:flex;align-items:baseline;gap:10px;min-width:0}
+.mini-player-head strong{font-size:11px;letter-spacing:1.5px;color:var(--gold)}
+.mini-player-head span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-player-head button{padding:5px 9px}
+.mini-player-body{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(220px,1.2fr);gap:12px;padding:12px}
+.mini-draw{display:grid;place-items:center;align-content:center;min-height:240px;border:1px solid #ffffff18;border-radius:14px;background:radial-gradient(circle at 50% 45%,#e1bc8c24,transparent 45%),#111926;text-align:center}
+.mini-draw span{font-size:10px;letter-spacing:2px;color:var(--muted)}
+.mini-draw strong{font-size:clamp(70px,12vw,112px);line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+.mini-draw small{font-size:11px;color:var(--muted)}
+.mini-player.is-drawing .mini-draw strong{animation:draw-number-pulse .36s ease-in-out infinite alternate;text-shadow:0 0 24px #e1bc8c99}
+.mini-card-wrap{min-width:0}
+.mini-card-tools{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px}
+.mini-card-tools button{padding:4px 9px}
+.mini-card-tools span{font-size:11px;color:var(--muted);min-width:92px;text-align:center}
+.mini-bingo-card{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+.mini-cell{display:grid;place-items:center;aspect-ratio:1;border-radius:6px;background:#28364a;border:1px solid #ffffff12;font-size:12px;font-weight:800}
+.mini-cell.mini-head{aspect-ratio:1.35;background:var(--gold);color:#172131}
+.mini-cell.marked{background:#32795e;color:white}
+.mini-cell.free{background:#6e5991;color:white;font-size:9px}
+.mini-player-stats{margin-top:8px;text-align:center;font-size:11px;color:var(--gold);font-weight:800}
+@media(max-width:620px){
+ .summary-actions small{display:none}
+ .mini-player{left:10px;right:10px;bottom:10px;width:auto}
+ .mini-player-body{grid-template-columns:.78fr 1.22fr;gap:8px;padding:9px}
+ .mini-draw{min-height:190px}
+ .mini-draw strong{font-size:64px}
+ .mini-cell{font-size:10px}
+}
