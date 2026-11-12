@@ -163,3 +163,5 @@ dialog::backdrop{background:#0009}
   .latest > #publicDrawAnimation .draw-ring-a{width:88%!important}
   .latest > #publicDrawAnimation .draw-ring-b{width:70%!important}
 }
+
+#continuousDraw.toggle-on{background:var(--green);color:#102019;box-shadow:0 0 0 2px #69e7b433 inset}
