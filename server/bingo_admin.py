@@ -200,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
             data=self.parse()
             if self.path=="/api/bingo/apply":
                 state=load_state()
-                if state.get("status")!="waiting": raise Error(409,"抽選開始後は新しいカードを申請できません。")
+                if state.get("status")=="finished": raise Error(409,"イベント終了後はカードを申請できません。")
                 name=data.get("name"); device=data.get("deviceId")
                 if not isinstance(name,str) or not 1<=len(name.strip())<=30: raise Error(400,"REALITY上の名前を1〜30文字で入力してください。")
                 if not isinstance(device,str) or not 12<=len(device)<=100: raise Error(400,"端末識別情報が不正です。")
