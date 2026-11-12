@@ -2,7 +2,7 @@
 (() => {
   const $=id=>document.getElementById(id);
   const API='https://153-127-64-17.sslip.io/api/bingo';
-  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null;
+  let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(localStorage.getItem('yplus.bingo.continuous.interval.v1')||10));
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
 
   function deviceId(){
@@ -212,6 +212,23 @@
     if(!active&&state&&$('latestNumber'))$('latestNumber').textContent=state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–';
   }
 
+  function formatDuration(totalSec){
+    totalSec=Math.max(0,Math.round(totalSec));
+    const h=Math.floor(totalSec/3600),m=Math.floor((totalSec%3600)/60),s=totalSec%60;
+    if(h>0)return h+'時間'+(m?m+'分':'');
+    if(m>0)return m+'分'+(s?s+'秒':'');
+    return s+'秒';
+  }
+  function updateContinuousEstimate(){
+    if(!state)return;
+    const remaining=Math.max(0,99-(state.drawn?.length||0));
+    const editing=$('continuousSettingsDialog')?.open;
+    const interval=editing?Math.max(5,Math.min(3600,Number($('continuousIntervalSec')?.value)||continuousIntervalSec)):continuousIntervalSec;
+    const total=remaining*interval;
+    const text='残り'+remaining+'個 · '+interval+'秒間隔 · 終了まで約'+formatDuration(total);
+    if($('continuousEstimate'))$('continuousEstimate').textContent=text;
+    if($('continuousSettingsEstimate'))$('continuousSettingsEstimate').textContent=text;
+  }
   function renderState(){
     if(!state)return;
     $('eventTitle').textContent=state.title||'Y++ 特設ビンゴ';
@@ -235,7 +252,7 @@
       continuous.classList.toggle('toggle-on',continuousMode);
       if(!state.drawActive&&continuousMode)setContinuousMode(false);
     }
-    renderParticipants(); renderAdminPeople(); renderWinners(); renderPublicCards(); renderChat(); updateDrawAnimation();
+    renderParticipants(); renderAdminPeople(); renderWinners(); renderPublicCards(); renderChat(); updateDrawAnimation(); updateContinuousEstimate();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
@@ -304,7 +321,9 @@
   function scheduleContinuousDraw(){
     if(continuousTimer){clearTimeout(continuousTimer);continuousTimer=null}
     if(!continuousMode||!token||!state?.drawActive||state.drawn.length>=99)return;
-    const wait=Math.max(500,Number(state?.lastDraw?.animationUntilMs||0)-Date.now()+450);
+    const sinceLast=Math.max(0,Number(state?.lastDraw?.animationUntilMs||0)-5000);
+    const nextAt=Math.max(Date.now()+500, sinceLast + continuousIntervalSec*1000);
+    const wait=Math.max(500,nextAt-Date.now());
     continuousTimer=setTimeout(async()=>{
       continuousTimer=null;
       if(!continuousMode||!token||!state?.drawActive){return}
@@ -312,6 +331,20 @@
       await mutate('draw');
       if(continuousMode)scheduleContinuousDraw();
     },wait);
+  }
+  function openContinuousSettings(){
+    $('continuousIntervalSec').value=String(continuousIntervalSec);
+    updateContinuousEstimate();
+    $('continuousSettingsDialog').showModal();
+  }
+  function saveContinuousSettings(){
+    const value=Math.max(5,Math.min(3600,Number($('continuousIntervalSec').value)||10));
+    continuousIntervalSec=Math.round(value);
+    storage.set('yplus.bingo.continuous.interval.v1',String(continuousIntervalSec));
+    $('continuousIntervalSec').value=String(continuousIntervalSec);
+    updateContinuousEstimate();
+    if(continuousMode)scheduleContinuousDraw();
+    $('continuousSettingsDialog').close();
   }
   async function saveChatName(){
     const name=$('adminChatName').value.trim();if(!name)return;
@@ -395,6 +428,11 @@
   $('finishGame').addEventListener('click',()=>{setContinuousMode(false);mutate('finish',{},'ビンゴ大会を終了しますか？')});
   $('drawNumber').addEventListener('click',()=>mutate('draw'));
   $('continuousDraw').addEventListener('click',()=>setContinuousMode(!continuousMode));
+  $('continuousSettings').addEventListener('click',openContinuousSettings);
+  $('continuousSettingsClose').addEventListener('click',()=>$('continuousSettingsDialog').close());
+  $('saveContinuousSettings').addEventListener('click',saveContinuousSettings);
+  $('continuousIntervalSec').addEventListener('input',updateContinuousEstimate);
+  document.querySelectorAll('[data-interval]').forEach(btn=>btn.addEventListener('click',()=>{$('continuousIntervalSec').value=btn.dataset.interval;updateContinuousEstimate()}));
   $('undoNumber').addEventListener('click',()=>mutate('undo',{},'最後の抽選番号を取り消しますか？'));
   $('resetGame').addEventListener('click',()=>{setContinuousMode(false);mutate('reset',{},'抽選番号をすべてリセットしますか？ 発行済みカードは保持されます。')});
   $('saveChatName').addEventListener('click',saveChatName);
