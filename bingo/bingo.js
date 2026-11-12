@@ -5,6 +5,8 @@
   const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
   let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false, continuousMode=false, continuousTimer=null, continuousIntervalSec=Math.max(5,Number(storage.get('yplus.bingo.continuous.interval.v1')||10)), miniPlayerCardIndex=0;
 
+  let miniVideoCanvas=null, miniVideoStream=null, lastStateSyncAt=0;
+
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
     if(!id){id='dev-'+crypto.randomUUID();storage.set('yplus.bingo.device.v1',id)}
@@ -116,7 +118,7 @@
   function renderMiniPlayer(){
     const player=$('miniPlayer'); if(!player||player.hidden)return;
     const person=selectedPublicPerson();
-    if(!person||!person.cards?.length){player.hidden=true;return;}
+    if(!person||!person.cards?.length){closeMiniPlayer();return;}
     miniPlayerCardIndex=Math.max(0,Math.min(miniPlayerCardIndex,person.cards.length-1));
     const card=person.cards[miniPlayerCardIndex];
     $('miniPlayerName').textContent=person.name;
@@ -135,6 +137,7 @@
     $('miniDrawNumber').textContent=active?(reveal?String(picked).padStart(2,'0'):String(1+Math.floor(Math.random()*99)).padStart(2,'0')):(picked?String(picked).padStart(2,'0'):'--');
     $('miniDrawStatus').textContent=active?(reveal?'決定！':'抽選中...'):(state?.drawActive?'次の抽選待ち':'抽選停止中');
     player.classList.toggle('is-drawing',active);
+    drawMiniVideoFrame(person,card,stats);
   }
   // Keep launch visibility independent of participant loading and card rendering.
   function syncMiniPlayerVisibility(){
@@ -155,8 +158,99 @@
     miniPlayerCardIndex=0;
     $('miniPlayer').hidden=false;
     renderMiniPlayer();
+    $('miniPlayerMessage').textContent='小窓用の動画を準備しています…';
+    enterMiniPictureInPicture();
   }
-  function closeMiniPlayer(){if($('miniPlayer'))$('miniPlayer').hidden=true}
+  function miniPlayerInPictureInPicture(){
+    const video=$('miniPlayerVideo');
+    return !!video&&(document.pictureInPictureElement===video||video.webkitPresentationMode==='picture-in-picture');
+  }
+  function miniPlayerSessionActive(){
+    return !!miniVideoStream&&!$('miniPlayer').hidden;
+  }
+  function drawMiniVideoFrame(person,card,stats){
+    if(!miniVideoCanvas)return;
+    const ctx=miniVideoCanvas.getContext('2d');
+    if(!ctx)return;
+    ctx.fillStyle='#0b1019';ctx.fillRect(0,0,960,600);
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    const text=(value,x,y,size,color,maxWidth)=>{ctx.font='700 '+size+'px system-ui, sans-serif';ctx.fillStyle=color;ctx.fillText(value,x,y,maxWidth)};
+    text(person.name,28,43,32,'#f5f0e9',620);
+    text('CARD '+(miniPlayerCardIndex+1)+' / '+person.cards.length,700,43,25,'#e1bc8c',230);
+    ctx.fillStyle='#172131';ctx.fillRect(24,86,360,450);
+    ctx.textAlign='center';
+    text('DRAW NUMBER',204,147,28,'#a6b1c2',320);
+    text($('miniDrawNumber').textContent,204,295,164,'#e1bc8c',340);
+    text($('miniDrawStatus').textContent,204,455,34,'#f5f0e9',320);
+    const hits=new Set(state?.drawn||[]);
+    const cell=(label,col,row,color,ink)=>{
+      const x=420+col*102,y=86+row*75;
+      ctx.fillStyle=color;ctx.fillRect(x,y,96,69);
+      text(label,x+48,y+35,label==='FREE'?22:34,ink,90);
+    };
+    'BINGO'.split('').forEach((label,col)=>cell(label,col,0,'#e1bc8c','#172131'));
+    card.numbers.forEach((n,i)=>cell(i===12?'FREE':String(n),i%5,1+Math.floor(i/5),i===12?'#6e5991':hits.has(n)?'#32795e':'#28364a','#fff'));
+    text('BINGO '+stats.bingo+' / REACH '+stats.reach+' / あと'+stats.remaining,480,557,29,'#e1bc8c',900);
+    const stale=lastStateSyncAt&&Date.now()-lastStateSyncAt>10000;
+    const time=lastStateSyncAt?new Date(lastStateSyncAt).toLocaleTimeString('ja-JP'):'未同期';
+    text((stale?'同期が遅れています · ':'最終更新 ')+time,480,586,19,stale?'#ffbc8c':'#a6b1c2',900);
+  }
+  async function prepareMiniVideo(){
+    const video=$('miniPlayerVideo');
+    if(miniVideoStream)return;
+    const canvas=document.createElement('canvas');canvas.width=960;canvas.height=600;
+    if(typeof canvas.captureStream!=='function')throw new Error('このブラウザーは小窓用の動画生成に対応していません。');
+    miniVideoCanvas=canvas;
+    renderMiniPlayer();
+    miniVideoStream=canvas.captureStream(10);
+    video.muted=true;video.playsInline=true;video.srcObject=miniVideoStream;video.hidden=false;
+    $('miniPlayer').classList.add('is-video');
+    await video.play();
+  }
+  async function enterMiniPictureInPicture(){
+    const button=$('miniPictureInPicture'),video=$('miniPlayerVideo'),status=$('miniPlayerMessage');
+    if(state?.drawActive!==true||$('miniPlayer').hidden)return;
+    button.disabled=true;
+    try{
+      await prepareMiniVideo();
+      if(state?.drawActive!==true||$('miniPlayer').hidden)return;
+      if(video.paused)await video.play();
+      if(state?.drawActive!==true||$('miniPlayer').hidden)return;
+      if(miniPlayerInPictureInPicture())return;
+      if(typeof video.requestPictureInPicture==='function'&&document.pictureInPictureEnabled){
+        await video.requestPictureInPicture();
+      }else if(typeof video.webkitSetPresentationMode==='function'&&video.webkitSupportsPresentationMode?.('picture-in-picture')){
+        video.webkitSetPresentationMode('picture-in-picture');
+      }else{
+        status.textContent='この端末・ブラウザーでは小窓再生を開始できません。Safari または Chrome で開き、動画の再生メニューも確認してください。';
+        return;
+      }
+      if(state?.drawActive!==true||$('miniPlayer').hidden){closeMiniPlayer();return;}
+      status.textContent='小窓再生中です。カードの切り替えはこのページで操作してください。';
+    }catch(e){
+      status.textContent=e.name==='NotAllowedError'?'動画の準備ができました。「スマホの小窓で再生」をもう一度押してください。':('小窓再生を開始できませんでした。再試行するか、動画の再生メニューを確認してください。'+(e.message?' '+e.message:''));
+    }finally{button.disabled=false}
+  }
+  function releaseMiniVideo(){
+    const video=$('miniPlayerVideo');
+    miniVideoStream?.getTracks().forEach(track=>track.stop());
+    miniVideoStream=null;miniVideoCanvas=null;
+    if(video){video.pause();video.srcObject=null;video.hidden=true}
+    $('miniPlayer')?.classList.remove('is-video');
+  }
+  function closeMiniPlayer(){
+    if($('miniPlayer'))$('miniPlayer').hidden=true;
+    const video=$('miniPlayerVideo');
+    if(document.pictureInPictureElement===video&&typeof document.exitPictureInPicture==='function'){
+      document.exitPictureInPicture().catch(()=>{}).finally(()=>{if($('miniPlayer').hidden)releaseMiniVideo()});
+    }else{
+      if(video?.webkitPresentationMode==='picture-in-picture'){
+        try{video.webkitSetPresentationMode('inline')}catch{}
+      }
+      releaseMiniVideo();
+    }
+  }
+
 
   function openDialog(person){$('dialogTitle').textContent=person.name+' のビンゴカード';renderPersonCards(person,$('dialogCards'));$('cardDialog').showModal();}
   function renderParticipants(){
@@ -282,7 +376,7 @@
     if(loading||busy)return;loading=true;
     try{
       const [,p]=await Promise.all([
-        api('/state').then(s=>{state=s.state;syncMiniPlayerVisibility()}),
+        api('/state').then(s=>{state=s.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility()}),
         api('/participants')
       ]);participants=p.participants||[];
       if(token){const [admin,ov]=await Promise.all([api('/admin/participants','GET',null,token),api('/admin/overview','GET',null,token)]);participants=admin.participants||participants;overview=ov||overview;}
@@ -312,7 +406,7 @@
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
   }
   async function participantAction(id,action){if(!token||busy)return;busy=true;try{await api('/admin/participant','POST',{participantId:id,action},token);await refresh(true)}catch(e){message('参加者操作に失敗しました：'+e.message)}finally{busy=false}}
-  async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;syncMiniPlayerVisibility();await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
+  async function mutate(action,extra={},confirmText=''){if(!token||busy||!state)return;if(confirmText&&!confirm(confirmText))return;busy=true;try{const r=await api('/admin/action','POST',{action,expectedRevision:state.revision,...extra},token);state=r.state;lastStateSyncAt=Date.now();syncMiniPlayerVisibility();await refresh(true)}catch(e){message('保存できませんでした：'+e.message);await refresh(true)}finally{busy=false}}
 
   function setContinuousMode(on){
     if(on&&(!state?.drawActive||state.drawn.length>=99)){message('先に「抽選開始」を押してから連続抽選をONにしてください。');return}
@@ -374,6 +468,11 @@
   $('participantSelect').addEventListener('change',()=>{miniPlayerCardIndex=0;renderPublicCards();renderMiniPlayer()});
   $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p);else renderPublicCards()});
   $('miniPlayerOpen').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openMiniPlayer()});
+  $('miniPictureInPicture').addEventListener('click',enterMiniPictureInPicture);
+  $('miniPlayerVideo').addEventListener('enterpictureinpicture',()=>{$('miniPlayerMessage').textContent='小窓再生中です。カードの切り替えはこのページで操作してください。'});
+  const miniPipEnded=()=>{if($('miniPlayer').hidden)releaseMiniVideo();else $('miniPlayerMessage').textContent='小窓再生を終了しました。もう一度ボタンを押すと再開できます。'};
+  $('miniPlayerVideo').addEventListener('leavepictureinpicture',miniPipEnded);
+  $('miniPlayerVideo').addEventListener('webkitpresentationmodechanged',()=>{if(miniPlayerInPictureInPicture())$('miniPlayerMessage').textContent='小窓再生中です。';else miniPipEnded()});
   $('miniPlayerClose').addEventListener('click',closeMiniPlayer);
   $('miniPrevCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex-1+p.cards.length)%p.cards.length;renderMiniPlayer()});
   $('miniNextCard').addEventListener('click',()=>{const p=selectedPublicPerson();if(!p?.cards?.length)return;miniPlayerCardIndex=(miniPlayerCardIndex+1)%p.cards.length;renderMiniPlayer()});
@@ -399,7 +498,7 @@
   $('adminChatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
 
   refresh();restoreAdminSession();
-  setInterval(()=>{if(!document.hidden)refresh(true)},1000);
+  setInterval(()=>{if(!document.hidden||miniPlayerSessionActive())refresh(true)},1000);
   setInterval(()=>{updateDrawAnimation();renderMiniPlayer()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
