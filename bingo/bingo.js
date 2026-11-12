@@ -35,6 +35,61 @@
       remaining:Math.min(...counts.map(n=>5-n))
     };
   }
+  function lineDefinitions(){
+    const defs=[];
+    for(let r=0;r<5;r++)defs.push({name:'横'+(r+1)+'列',indexes:[0,1,2,3,4].map(c=>r*5+c)});
+    for(let c=0;c<5;c++)defs.push({name:'縦'+(c+1)+'列',indexes:[0,1,2,3,4].map(r=>r*5+c)});
+    defs.push({name:'左上→右下',indexes:[0,6,12,18,24]},{name:'右上→左下',indexes:[4,8,12,16,20]});
+    return defs;
+  }
+  function winnerEvents(){
+    if(!state?.drawn?.length)return [];
+    const order=new Map(state.drawn.map((n,i)=>[Number(n),i+1]));
+    const events=[];
+    participants.filter(p=>p.status==='approved').forEach(person=>{
+      (person.cards||[]).forEach((card,cardIndex)=>{
+        lineDefinitions().forEach((def,lineIndex)=>{
+          const needed=def.indexes.filter(i=>i!==12).map(i=>Number(card.numbers[i]));
+          if(!needed.every(n=>order.has(n)))return;
+          const completedAt=Math.max(...needed.map(n=>order.get(n)));
+          const lastNumber=state.drawn[completedAt-1];
+          events.push({
+            participantId:person.id,
+            name:person.name,
+            cardIndex,
+            lineIndex,
+            lineName:def.name,
+            completedAt,
+            lastNumber
+          });
+        });
+      });
+    });
+    events.sort((a,b)=>a.completedAt-b.completedAt||a.name.localeCompare(b.name,'ja')||a.cardIndex-b.cardIndex||a.lineIndex-b.lineIndex);
+    return events;
+  }
+  function renderWinners(){
+    const root=$('winnerList'),count=$('winnerCount');
+    if(!root||!count)return;
+    root.replaceChildren();
+    const events=winnerEvents();
+    count.textContent=events.length+' BINGO';
+    if(!events.length){
+      const p=document.createElement('p');p.className='small-note';p.textContent='まだビンゴ成立者はいません。';root.append(p);return;
+    }
+    const personCounts=new Map();
+    events.forEach((event,index)=>{
+      const current=(personCounts.get(event.participantId)||0)+1;personCounts.set(event.participantId,current);
+      const row=document.createElement('div');row.className='winner-row';
+      const rank=document.createElement('span');rank.className='winner-rank';rank.textContent=String(index+1);
+      const main=document.createElement('div');main.className='winner-main';
+      const title=document.createElement('strong');title.textContent=event.name+' · '+current+'ビンゴ目';
+      const detail=document.createElement('div');detail.className='participant-card-status';
+      detail.textContent='CARD '+(event.cardIndex+1)+' · '+event.lineName+' · 抽選 #'+event.completedAt+'（'+String(event.lastNumber).padStart(2,'0')+'）で成立';
+      main.append(title,detail);
+      row.append(rank,main);root.append(row);
+    });
+  }
   function makeCardElement(card,index){
     const wrap=document.createElement('section'); wrap.className='issued-card';
     const head=document.createElement('div'); head.className='issued-card-head';
@@ -180,7 +235,7 @@
       continuous.classList.toggle('toggle-on',continuousMode);
       if(!state.drawActive&&continuousMode)setContinuousMode(false);
     }
-    renderParticipants(); renderAdminPeople(); renderPublicCards(); renderChat(); updateDrawAnimation();
+    renderParticipants(); renderAdminPeople(); renderWinners(); renderPublicCards(); renderChat(); updateDrawAnimation();
     if($('cardDialog').open){const name=$('dialogTitle').textContent.replace(' のビンゴカード','');const p=participants.find(x=>x.name===name);if(p)renderPersonCards(p,$('dialogCards'))}
   }
   async function refresh(silent=false){
