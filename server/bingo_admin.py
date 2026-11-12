@@ -105,8 +105,17 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Methods","GET, POST, OPTIONS")
         self.send_header("Content-Length",str(len(raw))); self.end_headers(); self.wfile.write(raw)
     def do_OPTIONS(self):
-        if self.headers.get("Origin") not in ORIGINS: return self.respond(403,{"error":"Origin not allowed"})
-        return self.respond(204,{})
+        origin=self.headers.get("Origin")
+        if origin not in ORIGINS:
+            return self.respond(403,{"error":"Origin not allowed"})
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin",origin)
+        self.send_header("Access-Control-Allow-Headers","Authorization, Content-Type")
+        self.send_header("Access-Control-Allow-Methods","GET, POST, OPTIONS")
+        self.send_header("Access-Control-Max-Age","600")
+        self.send_header("Vary","Origin")
+        self.send_header("Content-Length","0")
+        self.end_headers()
     def parse(self):
         if self.headers.get("Content-Type","").split(";")[0]!="application/json": raise Error(415,"JSON形式で送信してください。")
         try:
