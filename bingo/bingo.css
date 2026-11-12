@@ -294,9 +294,10 @@ dialog::backdrop{background:#0009}
 .live-event-heading{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .live-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:900;letter-spacing:1px;line-height:1.2;white-space:nowrap}
 .live-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
-.live-badge.is-onair{color:#ff8888;border-color:#ff888866;background:#ff888812}
+.live-badge.is-onair{color:#69ffad;border-color:#69ffad88;background:#20ff8012;text-shadow:0 0 6px #69ffad88,0 0 14px #35ff8d66}
+.live-badge.is-onair::before{box-shadow:0 0 7px #69ffad,0 0 14px #35ff8d88}
 .live-badge.is-offair{color:var(--muted);background:#ffffff08}
-#toggleLiveState[aria-pressed="true"]{background:#9e3e45;color:#fff}
+#toggleLiveState[aria-pressed="true"]{background:#123b28;color:#69ffad;text-shadow:0 0 6px #69ffad88,0 0 14px #35ff8d66}
 
 
 /* Compact participant records; actions float without expanding the list. */
