@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101624"><meta name="description" content="Y++ 特設ビンゴゲーム"><title>特設ビンゴ | Y++</title><link rel="stylesheet" href="./bingo.css"><script defer src="./bingo.js"></script></head>
 <body><header class="site-header"><a href="../" class="brand">Y<span>++</span></a><span class="section-name">SPECIAL EVENT / BINGO</span><a href="../" class="back">← HOME</a></header>
 <main>
-<section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em>BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、75球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
+<section class="hero"><div class="hero-tag">✦ Y++ SPECIAL EVENT</div><h1>みんなで、<em id="adminTrigger">BINGO!</em></h1><p id="eventDescription">参加者みんなで楽しむ、75球のビンゴ！</p><span id="connection" class="connection">共有データを読み込み中...</span></section>
 
 <section class="layout">
   <section class="card stage"><div class="section-title"><span>01 / LIVE DRAW</span><span id="gameStatus" class="status">準備中</span></div><h2 id="eventTitle">特設ビンゴ</h2><div class="latest"><span>LAST NUMBER</span><strong id="latestNumber">–</strong></div><div id="announcement" class="announcement"></div>    <div class="viewer-box">
@@ -24,7 +24,7 @@
   </section>
 </section>
 
-<section class="card admin"><details id="adminDetails"><summary>運営者向け管理画面を開く</summary><div class="admin-body">
+<section id="adminSection" class="card admin" hidden><details id="adminDetails"><summary>運営者向け管理画面を開く</summary><div class="admin-body">
   <p>運営者用パスワードを入力してください。VPS側で認証します。</p>
   <div class="admin-login"><input id="adminPassword" type="password" maxlength="128" placeholder="管理者パスワード" autocomplete="off" aria-label="管理者パスワード"><button id="adminPasswordLogin" type="button">管理画面を開く</button><button id="adminLogout" class="secondary" type="button" hidden>ログアウト</button></div>
   <p id="adminMessage" class="admin-message" role="status"></p>
