@@ -183,3 +183,14 @@ dialog::backdrop{background:#0009}
   .winner-section-right .winner-list{max-height:300px}
   .chat-messages.compact-chat{height:220px;min-height:180px}
 }
+
+
+.continuous-summary{margin:12px 0 4px;padding:10px 12px;border:1px solid #ffffff18;border-radius:12px;background:#0d1420;color:var(--muted);font-size:12px}
+.continuous-summary strong{color:var(--ink);font-weight:700}
+.continuous-settings-dialog{width:min(92vw,520px)}
+.continuous-setting-field{display:grid;gap:7px;margin:14px 0;color:var(--muted);font-size:12px}
+.continuous-setting-field input{width:100%}
+.interval-presets{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:12px 0}
+.interval-presets button{padding:9px 6px}
+.continuous-settings-estimate{margin:14px 0;padding:12px;border-radius:12px;background:#ffffff08;color:var(--gold);font-weight:800}
+@media(max-width:520px){.interval-presets{grid-template-columns:repeat(3,minmax(0,1fr))}}
