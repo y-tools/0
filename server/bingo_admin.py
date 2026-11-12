@@ -191,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                     online=sum(1 for info in SESSIONS.values() if info.get("expiresAt",0)>=now and now-info.get("lastSeen",0)<=15)
                     me=SESSIONS.get(session,{})
                 chat=load_chat()
-                return self.respond(200,{"onlineCount":online,"name":me.get("name",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","messages":chat["messages"][-100:]})
+                return self.respond(200,{"onlineCount":online,"name":me.get("adminId",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","messages":chat["messages"][-100:]})
             if self.path=="/api/bingo/admin/users":
                 session=self.check_auth()
                 with LOCK: info=SESSIONS.get(session,{})
@@ -242,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
                 session=secrets.token_urlsafe(32)
                 with LOCK:
                     FAILURES.pop(ip,None)
-                    SESSIONS[session]={"expiresAt":now+ttl,"lastSeen":now,"name":"","adminId":user["id"],"role":user["role"]}
+                    SESSIONS[session]={"expiresAt":now+ttl,"lastSeen":now,"name":user["id"],"adminId":user["id"],"role":user["role"]}
                     save_sessions()
                 return self.respond(200,{"token":session,"expiresIn":ttl,"adminId":user["id"],"canManageUsers":user["role"]=="owner"})
             if self.path=="/api/bingo/admin/logout":
@@ -273,18 +273,18 @@ class Handler(BaseHTTPRequestHandler):
                     p["updatedAt"]=now_text(); save_people(store)
                 return self.respond(200,{"participant":admin_person(p)})
             if self.path=="/api/bingo/admin/name":
-                session=self.check_auth(); name=data.get("name")
-                if not isinstance(name,str) or not 1<=len(name.strip())<=30: raise Error(400,"名前は1〜30文字で入力してください。")
+                session=self.check_auth()
+                # Retain this endpoint for older clients; identity is fixed by login.
                 with LOCK:
-                    SESSIONS[session]["name"]=name.strip(); save_sessions()
-                return self.respond(200,{"name":name.strip()})
+                    name=SESSIONS[session]["adminId"]
+                    SESSIONS[session]["name"]=name; save_sessions()
+                return self.respond(200,{"name":name})
             if self.path=="/api/bingo/admin/chat":
                 session=self.check_auth(); message=data.get("message")
                 if not isinstance(message,str) or not 1<=len(message.strip())<=300: raise Error(400,"メッセージは1〜300文字で入力してください。")
-                with LOCK: name=SESSIONS.get(session,{}).get("name","")
-                if not name: raise Error(409,"先に表示名を設定してください。")
+                with LOCK: name=SESSIONS[session]["adminId"]
                 with WRITE_LOCK:
-                    chat=load_chat(); chat["messages"].append({"id":"m-"+secrets.token_urlsafe(6),"name":name,"message":message.strip(),"createdAt":now_text()})
+                    chat=load_chat(); chat["messages"].append({"id":"m-"+secrets.token_urlsafe(6),"name":name,"adminId":name,"message":message.strip(),"createdAt":now_text()})
                     chat["messages"]=chat["messages"][-200:]; save_chat(chat)
                 return self.respond(201,{"ok":True})
             if self.path=="/api/bingo/admin/users":

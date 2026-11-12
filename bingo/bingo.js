@@ -296,14 +296,13 @@
   function renderChat(){
     if(!$('adminOnlineCount'))return;
     $('adminOnlineCount').textContent=Number(overview.onlineCount||0)+'人ログイン中';
-    if(overview.name&&!$('adminChatName').value)$('adminChatName').value=overview.name;
-    $('chatNameStatus').textContent=overview.name?'現在の名前：'+overview.name:'最初に名前を設定してください。';
+    $('chatNameStatus').textContent=overview.adminId?'投稿ID：'+overview.adminId:'ログイン中の管理者IDで投稿します。';
     if($('adminUserSettings'))$('adminUserSettings').hidden=!overview.canManageUsers;
     const root=$('adminChatMessages'), shouldStick=root.scrollTop+root.clientHeight>=root.scrollHeight-40;root.replaceChildren();
     (overview.messages||[]).forEach(m=>{
       const row=document.createElement('div');row.className='chat-message';
       const head=document.createElement('div');head.className='chat-message-head';
-      const name=document.createElement('strong');name.textContent=m.name||'運営';head.append(name);
+      const name=document.createElement('strong');name.textContent=m.adminId||m.name||'運営';head.append(name);
       const time=document.createElement('span');const d=new Date(m.createdAt);time.textContent=Number.isNaN(d.getTime())?'':d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});head.append(time);
       const body=document.createElement('div');body.textContent=m.message||'';row.append(head,body);root.append(row);
     });
@@ -452,8 +451,19 @@
     message('連続抽選の間隔を '+continuousIntervalSec+' 秒に変更しました。');
   }
 
-  async function saveChatName(){const name=$('adminChatName').value.trim();if(!name)return;try{const r=await api('/admin/name','POST',{name},token);overview.name=r.name;$('chatNameStatus').textContent='現在の名前：'+r.name;await refresh(true)}catch(e){$('chatNameStatus').textContent='名前を設定できませんでした：'+e.message}}
-  async function sendChat(){const input=$('adminChatInput'), text=input.value.trim();if(!text)return;$('sendAdminChat').disabled=true;try{await api('/admin/chat','POST',{message:text},token);input.value='';await refresh(true)}catch(e){$('chatNameStatus').textContent='送信できませんでした：'+e.message}finally{$('sendAdminChat').disabled=false}}
+  async function sendChat(){
+    const input=$('adminChatInput'),text=input.value.trim();if(!text)return;
+    $('sendAdminChat').disabled=true;
+    try{
+      // Older API deployments still require a session name before posting.
+      const me=await api('/admin/overview','GET',null,token);
+      if(!me.adminId)throw new Error('管理者IDを確認できません。再ログインしてください。');
+      if(me.name!==me.adminId)await api('/admin/name','POST',{name:me.adminId},token);
+      await api('/admin/chat','POST',{message:text},token);
+      input.value='';await refresh(true);
+    }catch(e){$('chatNameStatus').textContent='送信できませんでした：'+e.message}
+    finally{$('sendAdminChat').disabled=false}
+  }
   async function refreshAdminUsers(){if(!token||!$('adminUserSettings')||$('adminUserSettings').hidden)return;try{const r=await api('/admin/users','GET',null,token),root=$('adminUsersList');root.replaceChildren();(r.users||[]).forEach(u=>{const row=document.createElement('div');row.className='participant-row';const main=document.createElement('div');main.className='participant-main';const name=document.createElement('strong');name.textContent=u.id+(u.role==='owner'?'（オーナー）':'');main.append(name);row.append(main);if(u.role!=='owner'){const del=document.createElement('button');del.className='danger';del.textContent='削除';del.addEventListener('click',()=>adminUserAction('delete',u.id));row.append(del)}root.append(row)})}catch(e){$('adminUsersMessage').textContent='管理者一覧を取得できません：'+e.message}}
   async function adminUserAction(action,adminId,password=''){try{await api('/admin/users','POST',{action,adminId,password},token);$('adminUsersMessage').textContent=action==='create'?'管理者を追加しました。':'管理者を削除しました。';await refreshAdminUsers()}catch(e){$('adminUsersMessage').textContent='操作できませんでした：'+e.message}}
   async function restoreAdminSession(){const saved=storage.get('yplus.bingo.admin.token.v1');if(!saved)return;token=saved;try{await api('/admin/overview','GET',null,token);$('publicView').hidden=true;$('adminView').hidden=false;await refresh(true);await refreshAdminUsers()}catch{token='';storage.remove('yplus.bingo.admin.token.v1')}}
@@ -493,7 +503,7 @@
   document.querySelectorAll('[data-interval]').forEach(btn=>btn.addEventListener('click',()=>{const input=$('continuousIntervalSec');input.value=btn.dataset.interval;updateContinuousEstimate()}));
   $('undoNumber').addEventListener('click',()=>mutate('undo',{},'最後の抽選番号を取り消しますか？'));
   $('resetGame').addEventListener('click',()=>{setContinuousMode(false);mutate('reset',{},'抽選番号をすべてリセットしますか？ 発行済みカードは保持されます。')});
-  $('saveChatName').addEventListener('click',saveChatName);$('adminChatName').addEventListener('keydown',e=>{if(e.key==='Enter')saveChatName()});$('sendAdminChat').addEventListener('click',sendChat);
+  $('sendAdminChat').addEventListener('click',sendChat);
   $('createAdminUser').addEventListener('click',()=>{const id=$('newAdminId').value.trim(),pw=$('newAdminPassword').value;if(!id||!pw)return $('adminUsersMessage').textContent='IDとパスワードを入力してください。';adminUserAction('create',id,pw).then(()=>{$('newAdminId').value='';$('newAdminPassword').value=''})});
   $('adminChatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
 
