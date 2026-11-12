@@ -153,7 +153,13 @@ def change_state(state,payload):
         remaining=[n for n in range(1,100) if n not in numbers]
         if not remaining: raise Error(400,"すべて抽選済みです。")
         before=list(numbers)
-        picked=secrets.choice(remaining); numbers.append(picked)
+        if "number" in payload:
+            picked=payload["number"]
+            if type(picked) is not int or not 1<=picked<=99: raise Error(400,"指定番号は1〜99の整数で入力してください。")
+            if picked not in remaining: raise Error(409,"その番号はすでに抽選済みです。")
+        else:
+            picked=secrets.choice(remaining)
+        numbers.append(picked)
         now_ms=int(time.time()*1000)
         state["lastDraw"]={"number":picked,"animationUntilMs":now_ms+5000}
         events=[event for event in state.get("celebrations",[]) if event.get("endsAtMs",0)>now_ms]
@@ -230,7 +236,7 @@ class Handler(BaseHTTPRequestHandler):
                     online=sum(1 for info in SESSIONS.values() if info.get("expiresAt",0)>=now and now-info.get("lastSeen",0)<=15)
                     me=SESSIONS.get(session,{})
                 chat=load_chat()
-                return self.respond(200,{"onlineCount":online,"name":me.get("adminId",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","canDeleteParticipants":True,"messages":chat["messages"][-100:]})
+                return self.respond(200,{"onlineCount":online,"name":me.get("adminId",""),"adminId":me.get("adminId",""),"canManageUsers":me.get("role")=="owner","canDeleteParticipants":True,"canSpecifyDrawNumber":True,"messages":chat["messages"][-100:]})
             if self.path=="/api/bingo/admin/users":
                 session=self.check_auth()
                 with LOCK: info=SESSIONS.get(session,{})
@@ -389,6 +395,7 @@ def main():
     print("Y++ Bingo API on loopback",flush=True)
     ThreadingHTTPServer(("127.0.0.1",int(os.getenv("YPLUS_BINGO_PORT","8791"))),Handler).serve_forever()
 if __name__=="__main__": main()
+
 
 
 

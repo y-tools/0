@@ -321,3 +321,11 @@ dialog::backdrop{background:#0009}
 .participant-actions .delete-participant{border-top:1px solid #ffffff20}
 @media(pointer:coarse){.participant-menu summary,.participant-actions button,.participant-actions .delete-card,.participant-actions .delete-participant{min-height:44px}}
 
+
+.specified-draw{margin:14px 0;padding-top:12px;border-top:1px solid #ffffff18}
+.specified-draw>label{display:block;margin:0 0 6px;font-size:12px;font-weight:700;color:var(--muted)}
+.specified-draw-controls{display:flex;align-items:stretch;gap:8px}
+.specified-draw-controls input{flex:1;min-width:0;width:90px}
+.specified-draw-controls button{min-height:44px;white-space:nowrap}
+.specified-draw .small-note{margin:7px 0 0}
+

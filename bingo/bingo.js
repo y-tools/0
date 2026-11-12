@@ -490,6 +490,8 @@
     if(token){
       syncEventSettings();$('saveEventSettings').disabled=!eventSettingsDirty||busy||settingsSaving;
       $('drawNumber').disabled=!state.drawActive||state.drawn.length===99||busy||drawAnimationActive()||celebrationPending();
+      $('drawSpecifiedNumber').disabled=$('drawNumber').disabled||overview.canSpecifyDrawNumber!==true;
+      $('specifiedDrawHint').textContent=overview.canSpecifyDrawNumber===true?'未抽選の1〜99を指定できます。通常と同じ演出で抽選します。':'指定番号抽選は現在準備中です。';
       $('undoNumber').disabled=!state.drawn.length||busy;$('startDrawMode').disabled=!!state.drawActive||busy;$('stopDrawMode').disabled=!state.drawActive||busy;
       const continuous=$('continuousDraw');
       continuous.disabled=!state.drawActive||state.drawn.length===99||busy;
@@ -557,6 +559,20 @@
     }catch(e){message('保存できませんでした：'+e.message)}
     finally{busy=false}
     await refresh(true);return success;
+  }
+
+  async function drawSpecifiedNumber(){
+    if(!token||busy||!state)return;
+    if(overview.canSpecifyDrawNumber!==true){message('指定番号抽選は現在準備中です。');return;}
+    if(!state.drawActive){message('先に「抽選開始」を押してください。');return;}
+    if(drawAnimationActive()||celebrationPending()){message('現在の演出が終了してから抽選してください。');return;}
+    const input=$('specifiedNumber'),number=Number(input.value);
+    if(!input.value.trim()||!Number.isInteger(number)||number<1||number>99){message('1〜99の整数を入力してください。');input.focus();return;}
+    if(state.drawn.includes(number)){message('その番号はすでに抽選済みです。別の番号を指定してください。');input.focus();return;}
+    if(await mutate('draw',{number})){
+      input.value='';message('指定番号 '+String(number).padStart(2,'0')+' を抽選しました。');
+      if(continuousMode)scheduleContinuousDraw();
+    }
   }
 
   function setContinuousMode(on){
@@ -664,6 +680,8 @@
     if(await mutate('set_live',{onAir:next}))message('LIVEを'+(next?'ONAIR':'OFFAIR')+'に切り替えました。');
   });
   $('drawNumber').addEventListener('click',()=>mutate('draw'));
+  $('drawSpecifiedNumber').addEventListener('click',drawSpecifiedNumber);
+  $('specifiedNumber').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();drawSpecifiedNumber()}});
   $('continuousDraw').addEventListener('click',()=>setContinuousMode(!continuousMode));
   $('continuousSettings').addEventListener('click',openContinuousSettings);
   $('continuousSettingsClose').addEventListener('click',()=>$('continuousSettingsDialog').close());
@@ -682,6 +700,7 @@
   setInterval(()=>{updateDrawAnimation();renderMiniPlayer();renderCelebrations()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
+
 
 
 
