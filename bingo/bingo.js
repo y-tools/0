@@ -204,6 +204,12 @@
     const time=lastStateSyncAt?new Date(lastStateSyncAt).toLocaleTimeString('ja-JP'):'未同期';
     text((stale?'同期が遅れています · ':'最終更新 ')+time,480,586,19,stale?'#ffbc8c':'#a6b1c2',900);
   }
+  function enforceMiniPlayerMute(){
+    const video=$('miniPlayerVideo');if(!video)return;
+    if(!video.defaultMuted)video.defaultMuted=true;
+    if(!video.muted)video.muted=true;
+    if(video.volume!==0)video.volume=0;
+  }
   async function prepareMiniVideo(){
     const video=$('miniPlayerVideo');
     if(miniVideoStream)return;
@@ -212,7 +218,8 @@
     miniVideoCanvas=canvas;
     renderMiniPlayer();
     miniVideoStream=canvas.captureStream(10);
-    video.muted=true;video.playsInline=true;video.srcObject=miniVideoStream;video.hidden=false;
+    enforceMiniPlayerMute();
+    video.playsInline=true;video.srcObject=miniVideoStream;video.hidden=false;
     $('miniPlayer').classList.add('is-video');
     await video.play();
   }
@@ -223,6 +230,7 @@
     try{
       await prepareMiniVideo();
       if(state?.drawActive!==true||$('miniPlayer').hidden)return;
+      enforceMiniPlayerMute();
       if(video.paused)await video.play();
       if(state?.drawActive!==true||$('miniPlayer').hidden)return;
       if(miniPlayerInPictureInPicture())return;
@@ -493,6 +501,10 @@
     $('publicCards').querySelector('[data-card-step="'+button.dataset.cardStep+'"]:not(:disabled)')?.focus({preventScroll:true});
   });
   $('miniPlayerOpen').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openMiniPlayer()});
+  enforceMiniPlayerMute();
+  ['volumechange','play','loadedmetadata','enterpictureinpicture','webkitpresentationmodechanged'].forEach(event=>{
+    $('miniPlayerVideo').addEventListener(event,enforceMiniPlayerMute);
+  });
   $('miniPictureInPicture').addEventListener('click',enterMiniPictureInPicture);
   $('miniPlayerVideo').addEventListener('enterpictureinpicture',()=>{$('miniPlayerMessage').textContent='小窓再生中です。カードの切り替えはこのページで操作してください。'});
   const miniPipEnded=()=>{if($('miniPlayer').hidden)releaseMiniVideo();else $('miniPlayerMessage').textContent='小窓再生を終了しました。もう一度ボタンを押すと再開できます。'};
