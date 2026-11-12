@@ -290,3 +290,11 @@ dialog::backdrop{background:#0009}
 @keyframes celebration-pulse{from{transform:scale(.96)}to{transform:scale(1.04)}}
 @keyframes celebration-spark{from{transform:translateY(-4px);opacity:.3}to{transform:translateY(8px);opacity:1}}
 @media(prefers-reduced-motion:reduce){.celebration-kicker,.celebration-overlay::before{animation:none}}
+
+.live-event-heading{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.live-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:900;letter-spacing:1px;line-height:1.2;white-space:nowrap}
+.live-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.live-badge.is-onair{color:#ff8888;border-color:#ff888866;background:#ff888812}
+.live-badge.is-offair{color:var(--muted);background:#ffffff08}
+#toggleLiveState[aria-pressed="true"]{background:#9e3e45;color:#fff}
+

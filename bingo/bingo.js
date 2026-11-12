@@ -457,7 +457,13 @@
   function renderState(){
     syncMiniPlayerVisibility();
     if(!state)return;
-    $('eventTitle').textContent=state.title||'Y++ 特設ビンゴ';
+    $('eventTitle').textContent=(state.title||'特設ビンゴ').replace(/^Y\+\+\s*/,'').trim()||'特設ビンゴ';
+    const onAir=state.liveOnAir===true,status=onAir?'ONAIR':'OFFAIR';
+    $('liveStatus').textContent=status;
+    $('liveStatus').classList.toggle('is-onair',onAir);$('liveStatus').classList.toggle('is-offair',!onAir);
+    const liveButton=$('toggleLiveState');
+    liveButton.textContent='LIVE：'+status;liveButton.disabled=busy;
+    liveButton.setAttribute('aria-pressed',String(onAir));liveButton.setAttribute('aria-label','LIVEを'+(onAir?'OFFAIR':'ONAIR')+'に切り替える');
     $('eventDescription').textContent='参加者みんなで楽しむBINGO！';
     $('announcement').textContent=state.announcement||'';
     $('gameStatus').textContent=state.drawActive?'現在抽選中':(({waiting:'準備中',running:'開催中',paused:'一時停止',finished:'終了'})[state.status]||'準備中');
@@ -633,7 +639,10 @@
   $('saveEventSettings').addEventListener('click',saveEventSettings);
   $('startDrawMode').addEventListener('click',async()=>{setContinuousMode(false);await mutate('draw_start')});
   $('stopDrawMode').addEventListener('click',async()=>{setContinuousMode(false);await mutate('draw_stop')});
-  $('finishGame').addEventListener('click',()=>{setContinuousMode(false);mutate('finish',{},'ビンゴ大会を終了しますか？')});
+  $('toggleLiveState').addEventListener('click',async()=>{
+    const next=state?.liveOnAir!==true;
+    if(await mutate('set_live',{onAir:next}))message('LIVEを'+(next?'ONAIR':'OFFAIR')+'に切り替えました。');
+  });
   $('drawNumber').addEventListener('click',()=>mutate('draw'));
   $('continuousDraw').addEventListener('click',()=>setContinuousMode(!continuousMode));
   $('continuousSettings').addEventListener('click',openContinuousSettings);
@@ -653,5 +662,6 @@
   setInterval(()=>{updateDrawAnimation();renderMiniPlayer();renderCelebrations()},100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 })();
+
 
 

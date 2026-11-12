@@ -135,6 +135,10 @@ def change_state(state,payload):
         if not isinstance(title,str) or not 1<=len(title.strip())<=60: raise Error(400,"イベント名は1〜60文字で入力してください。")
         if not isinstance(announcement,str) or len(announcement)>300: raise Error(400,"お知らせは300文字以内で入力してください。")
         state["title"]=title.strip(); state["announcement"]=announcement
+    elif action=="set_live":
+        on_air=payload.get("onAir")
+        if type(on_air) is not bool: raise Error(400,"LIVEの状態を指定してください。")
+        state["liveOnAir"]=on_air
     elif action in ("start","draw_start"):
         state["status"]="running"; state["drawActive"]=True
     elif action in ("pause","draw_stop"):
@@ -385,5 +389,6 @@ def main():
     print("Y++ Bingo API on loopback",flush=True)
     ThreadingHTTPServer(("127.0.0.1",int(os.getenv("YPLUS_BINGO_PORT","8791"))),Handler).serve_forever()
 if __name__=="__main__": main()
+
 
 
