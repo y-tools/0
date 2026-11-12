@@ -258,15 +258,6 @@
       if (!resp.ok) throw new Error('設定ファイルを読み込めません');
       const config = await resp.json();
       state.config = config;
-      $('heroEyebrow').textContent = String(config.eyebrow || 'Y++ TOOLS / PORTAL').slice(0, 100);
-      $('heroTitle').textContent = String(config.hero?.title || '創る、つなぐ、楽しむ。').slice(0, 100);
-      // Hero line break is part of the default design; do not use innerHTML from config.
-      if (config.hero?.title === '創る、つなぐ、楽しむ。') {
-        $('heroTitle').replaceChildren('創る、', document.createElement('br'));
-        const em = document.createElement('em');em.textContent = 'つなぐ、';
-        $('heroTitle').append(em, document.createTextNode('楽しむ。'));
-      }
-      $('heroDescription').textContent = String(config.hero?.description || '').slice(0, 500);
       loadMenu(config.menu);
       renderProfile(config.profile);
     } catch(err) {
