@@ -3,7 +3,7 @@
   const $=id=>document.getElementById(id);
   const API='https://153-127-64-17.sslip.io/api/bingo';
   let state=null, token='', participants=[], overview={onlineCount:0,name:'',messages:[]}, busy=false, loading=false;
-  const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+  const storage={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},remove:k=>{try{localStorage.removeItem(k)}catch{}}};
 
   function deviceId(){
     let id=storage.get('yplus.bingo.device.v1');
@@ -118,6 +118,7 @@
     $('adminOnlineCount').textContent=Number(overview.onlineCount||0)+'人ログイン中';
     if(overview.name&&!$('adminChatName').value)$('adminChatName').value=overview.name;
     $('chatNameStatus').textContent=overview.name?'現在の名前：'+overview.name:'最初に名前を設定してください。';
+    if($('adminUserSettings'))$('adminUserSettings').hidden=!overview.canManageUsers;
     const root=$('adminChatMessages'), shouldStick=root.scrollTop+root.clientHeight>=root.scrollHeight-40;root.replaceChildren();
     (overview.messages||[]).forEach(m=>{
       const row=document.createElement('div');row.className='chat-message';
@@ -186,10 +187,14 @@
     finally{$('applyCard').disabled=false}
   }
   async function login(){
-    const password=$('adminPassword').value;if(!password)return message('管理者パスワードを入力してください。');
+    const adminId=$('adminId').value.trim(),password=$('adminPassword').value,remember=$('rememberAdmin').checked;
+    if(!adminId||!password)return message('管理者IDとパスワードを入力してください。');
     $('adminPasswordLogin').disabled=true;
-    try{const r=await api('/admin/login','POST',{password});token=r.token;$('adminLoginDialog').close();$('publicView').hidden=true;$('adminView').hidden=false;message('');await refresh(true)}
-    catch(e){message('管理画面を開けません：'+e.message)}
+    try{
+      const r=await api('/admin/login','POST',{adminId,password,remember});token=r.token;
+      if(remember)storage.set('yplus.bingo.admin.token.v1',token);else storage.remove('yplus.bingo.admin.token.v1');
+      $('adminLoginDialog').close();$('publicView').hidden=true;$('adminView').hidden=false;message('');await refresh(true);await refreshAdminUsers();
+    }catch(e){message('管理画面を開けません：'+e.message)}
     finally{$('adminPassword').value='';$('adminPasswordLogin').disabled=false}
   }
   async function participantAction(id,action){
@@ -215,6 +220,41 @@
     try{await api('/admin/chat','POST',{message:text},token);input.value='';await refresh(true)}
     catch(e){$('chatNameStatus').textContent='送信できませんでした：'+e.message}
     finally{$('sendAdminChat').disabled=false}
+  }
+
+
+  async function refreshAdminUsers(){
+    if(!token||!$('adminUserSettings')||$('adminUserSettings').hidden)return;
+    try{
+      const r=await api('/admin/users','GET',null,token),root=$('adminUsersList');root.replaceChildren();
+      (r.users||[]).forEach(u=>{
+        const row=document.createElement('div');row.className='participant-row';
+        const main=document.createElement('div');main.className='participant-main';
+        const name=document.createElement('strong');name.textContent=u.id+(u.role==='owner'?'（オーナー）':'');main.append(name);row.append(main);
+        if(u.role!=='owner'){
+          const del=document.createElement('button');del.className='danger';del.textContent='削除';del.addEventListener('click',()=>adminUserAction('delete',u.id));row.append(del);
+        }
+        root.append(row);
+      });
+    }catch(e){$('adminUsersMessage').textContent='管理者一覧を取得できません：'+e.message}
+  }
+  async function adminUserAction(action,adminId,password=''){
+    try{
+      await api('/admin/users','POST',{action,adminId,password},token);
+      $('adminUsersMessage').textContent=action==='create'?'管理者を追加しました。':'管理者を削除しました。';
+      await refreshAdminUsers();
+    }catch(e){$('adminUsersMessage').textContent='操作できませんでした：'+e.message}
+  }
+  async function restoreAdminSession(){
+    const saved=storage.get('yplus.bingo.admin.token.v1');if(!saved)return;
+    token=saved;
+    try{
+      await api('/admin/overview','GET',null,token);
+      $('publicView').hidden=true;$('adminView').hidden=false;
+      await refresh(true);await refreshAdminUsers();
+    }catch{
+      token='';storage.remove('yplus.bingo.admin.token.v1');
+    }
   }
 
   const adminTrigger=$('adminTrigger');
@@ -243,8 +283,9 @@
   $('dialogClose').addEventListener('click',()=>$('cardDialog').close());
   $('adminLoginClose').addEventListener('click',()=>{$('adminLoginDialog').close();$('adminPassword').value='';message('')});
   $('adminPasswordLogin').addEventListener('click',login);
+  $('adminId').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
   $('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true)});
+  $('adminLogout').addEventListener('click',async()=>{const t=token;token='';storage.remove('yplus.bingo.admin.token.v1');$('adminView').hidden=true;$('publicView').hidden=false;if(t)await api('/admin/logout','POST',{},t).catch(()=>{});await refresh(true)});
   $('saveEvent').addEventListener('click',()=>mutate('save',{title:$('editTitle').value.slice(0,60),announcement:$('editAnnouncement').value.slice(0,300)}));
   $('startGame').addEventListener('click',()=>mutate('start'));
   $('pauseGame').addEventListener('click',()=>mutate('pause'));
@@ -255,10 +296,11 @@
   $('saveChatName').addEventListener('click',saveChatName);
   $('adminChatName').addEventListener('keydown',e=>{if(e.key==='Enter')saveChatName()});
   $('sendAdminChat').addEventListener('click',sendChat);
+  $('createAdminUser').addEventListener('click',()=>{const id=$('newAdminId').value.trim(),pw=$('newAdminPassword').value;if(!id||!pw)return $('adminUsersMessage').textContent='IDとパスワードを入力してください。';adminUserAction('create',id,pw).then(()=>{$('newAdminId').value='';$('newAdminPassword').value=''})});
   $('adminChatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
-  window.addEventListener('pagehide',()=>{token=''});
+  window.addEventListener('pagehide',()=>{});
 
-  refresh();
+  refresh();restoreAdminSession();
   setInterval(()=>{if(!document.hidden)refresh(true)},1000);
   setInterval(updateDrawAnimation,100);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
