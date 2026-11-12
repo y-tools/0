@@ -140,6 +140,32 @@
     catch(e){message('保存できませんでした：'+e.message);await refresh(true)}
     finally{busy=false}
   }
+
+  const adminTrigger=$('adminTrigger'), adminSection=$('adminSection'), adminDetails=$('adminDetails');
+  let adminTapCount=0, adminTapTimer=null, adminHoldTimer=null, adminHoldOpened=false;
+  function openAdminPanel(){
+    adminSection.hidden=false;
+    adminDetails.open=true;
+    adminSection.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  adminTrigger.addEventListener('click',()=>{
+    if(adminHoldOpened){adminHoldOpened=false;return}
+    adminTapCount++;
+    clearTimeout(adminTapTimer);
+    if(adminTapCount>=5){adminTapCount=0;openAdminPanel();return}
+    adminTapTimer=setTimeout(()=>{adminTapCount=0},1800);
+  });
+  const startAdminHold=()=>{
+    adminHoldOpened=false;
+    clearTimeout(adminHoldTimer);
+    adminHoldTimer=setTimeout(()=>{adminHoldOpened=true;adminTapCount=0;openAdminPanel()},3000);
+  };
+  const cancelAdminHold=()=>{clearTimeout(adminHoldTimer)};
+  adminTrigger.addEventListener('pointerdown',startAdminHold);
+  adminTrigger.addEventListener('pointerup',cancelAdminHold);
+  adminTrigger.addEventListener('pointercancel',cancelAdminHold);
+  adminTrigger.addEventListener('pointerleave',cancelAdminHold);
+  adminTrigger.addEventListener('contextmenu',e=>{e.preventDefault()});
   $('applyCard').addEventListener('click',apply);
   $('participantSelect').addEventListener('change',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);renderPersonCards(p,$('publicCards'))});
   $('viewParticipant').addEventListener('click',()=>{const p=participants.find(x=>x.id===$('participantSelect').value);if(p)openDialog(p)});
