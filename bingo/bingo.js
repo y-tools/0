@@ -484,7 +484,6 @@
     liveButton.setAttribute('aria-pressed',String(onAir));liveButton.setAttribute('aria-label','LIVEを'+(onAir?'OFFAIR':'ONAIR')+'に切り替える');
     $('eventDescription').textContent='参加者みんなで楽しむBINGO！';
     $('announcement').textContent=state.announcement||'';
-    $('gameStatus').textContent=state.drawActive?'現在抽選中':(({waiting:'準備中',running:'開催中',paused:'一時停止',finished:'終了'})[state.status]||'準備中');
     $('latestNumber').textContent=drawAnimationActive()?'…':(state.drawn.length?String(state.drawn.at(-1)).padStart(2,'0'):'–');
     renderHistory('history','drawCount');renderHistory('adminHistory','adminDrawCount');$('applicationArea').hidden=false;
     if(token){
