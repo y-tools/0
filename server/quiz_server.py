@@ -12,6 +12,7 @@ import secrets
 import sqlite3
 import sys
 import time
+import unicodedata
 import warnings
 from contextlib import contextmanager
 from http.cookies import SimpleCookie
@@ -173,6 +174,7 @@ def public_state(connection, me=None, host=False):
     users = {r['slot']: r for r in connection.execute("SELECT * FROM users WHERE role='player' AND enabled=1")}
     players = []
     reveal = game['phase'] == 'answer' and game['screen'] == 'answer'
+    correct_answer = unicodedata.normalize('NFKC', row['correct_answer']).strip() if reveal else None
     for slot in range(1, 5):
         user, answer = users.get(slot), answers.get(slot)
         player = {'slot': slot, 'id': user['id'] if user else '',
@@ -181,6 +183,8 @@ def public_state(connection, me=None, host=False):
         if answer and user and (host or reveal or (me and me['role'] == 'player' and me['slot'] == slot)):
             player['answer'] = answer['answer']
             player['updatedMs'] = answer['updated_ms']
+        if reveal and user:
+            player['correct'] = bool(answer and unicodedata.normalize('NFKC', answer['answer']).strip() == correct_answer)
         players.append(player)
     public_game = {key: game[key] for key in ['revision', 'phase', 'screen', 'roundId', 'deadlineMs', 'duration']}
     public_game['image'] = media_url(connection, game['mediaId'], 'screen') if game['screen'] == 'image' else None

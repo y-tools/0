@@ -1,4 +1,4 @@
-# みんなでクイズ
+# みんなで漢字
 
 Independent Python/SQLite service. Does not import or share credentials, cookies, data, ports, or runtime dependencies with bingo or Y-OBS.
 
@@ -15,7 +15,7 @@ Owner ID: `Y`. The initial password is provisioned directly into the private dat
 1. Configure up to four participants and optional avatars. Images are cropped to square 256×256. Blank passwords on new accounts are generated and shown once; on existing accounts blank preserves the current password. Changing ID/password or disabling a slot revokes that participant's sessions and removes their previous answers.
 2. Upload screen images (PNG/JPEG/WebP, under 6MB each; 400 total). Server validates and re-encodes them; screen images fit within 1920×1080. Register questions with a correct answer, a timer (1–3600 seconds) and optionally multiple images. Up to 200 questions.
 3. Select 出題 in the question list. This publishes the question and waits for スタート. Starting opens answers until the server-controlled deadline. Repeated submissions overwrite the same player's answer in the same round.
-4. The deadline closes answers and displays TIME UP. 正解を表示 publishes the correct answer and the four latest answers. Before that, only the game master can see every answer; a player can see their own. Future questions and correct answers are excluded from public state.
+4. The deadline closes answers and displays TIME UP. 正解を表示 publishes the correct answer and the four latest answers in a 2×2 grid. Correct answers have red panels; incorrect or missing answers have gray panels. Matching uses Unicode NFKC normalization and trims leading/trailing whitespace, then compares exactly. Before reveal, no correctness verdict is sent to players or listeners. Only the game master can see every answer; a player can see their own. Future questions and correct answers are excluded from public state.
 5. Click a screen image, 問題画面, 正解を表示, or 待機画面 to switch the shared display. Image switches preserve an active timer. A new 出題 creates a fresh round. 待機画面 closes any running timer.
 
 ## Deployment

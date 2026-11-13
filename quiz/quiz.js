@@ -80,23 +80,31 @@
     } else if (screen === 'timeup') {
       stage.classList.add('timeup'); stage.append(node('p', 'stage-kicker', 'PENS DOWN'), node('h2', '', 'TIME UP'), node('p', 'sub', '回答を締め切りました。正解発表をお待ちください。'));
     } else if (screen === 'answer' && q?.correctAnswer !== undefined) {
-      stage.classList.add('answer-stage'); stage.append(node('p', 'stage-kicker', 'THE ANSWER'), node('h2', '', '正解は…'), node('p', 'prompt', q.correctAnswer));
+      stage.classList.add('answer-stage'); stage.append(node('h2', '', '正解'), node('p', 'prompt', q.correctAnswer));
     } else if (screen === 'question' && q) {
       stage.append(node('p', 'stage-kicker', q.label), node('p', 'prompt', q.prompt || '問題画像を確認してください。'));
     } else {
-      stage.append(node('p', 'stage-kicker', 'READY TO PLAY?'), node('h2', '', 'みんなでクイズ'), node('p', 'sub', 'ゲームマスターの出題をお待ちください。'));
+      stage.append(node('p', 'stage-kicker', 'READY TO PLAY?'), node('h2', '', 'みんなで漢字'), node('p', 'sub', 'ゲームマスターの出題をお待ちください。'));
     }
   }
   function render() {
     const {game, me} = state;
     const isHost = !!state.questions;
-    $('board-label').textContent = state.question?.label || 'みんなでクイズ';
+    const revealed = game.screen === 'answer' && game.phase === 'answer';
+    $('board-label').textContent = state.question?.label || 'みんなで漢字';
     $('board-phase').textContent = phases[game.phase];
-    $('board').classList.toggle('revealed', game.screen === 'answer' && game.phase === 'answer');
+    $('board').classList.toggle('revealed', revealed);
     renderStage();
     $('players').replaceChildren(...state.players.map(p => {
-      const tile = node('div', 'player-tile' + (p.submitted ? ' submitted' : ''));
-      const detail = node('div'); detail.append(node('p', 'player-id', p.id || `PLAYER ${p.slot}`), node('p', 'player-answer', game.screen === 'answer' && game.phase === 'answer' ? (p.answer || (p.id ? '未回答' : '参加待ち')) : (p.submitted ? '回答済み ✓' : p.id ? '考え中' : '参加待ち')));
+      const tile = node('div', 'player-tile' + (p.submitted ? ' submitted' : '') + (revealed ? (p.correct === true ? ' correct' : ' incorrect') : ''));
+      const detail = node('div');
+      const answer = node('p', 'player-answer', revealed ? (p.answer || (p.id ? '未回答' : '参加待ち')) : (p.submitted ? '回答済み ✓' : p.id ? '考え中' : '参加待ち'));
+      if (revealed) {
+        const length = Array.from(p.answer || '').length;
+        answer.classList.add(length > 80 ? 'answer-long' : length > 24 ? 'answer-medium' : length > 8 ? 'answer-short' : 'answer-large');
+      }
+      detail.append(node('p', 'player-id', p.id || `PLAYER ${p.slot}`), answer);
+      if (revealed) detail.append(node('span', 'verdict', !p.id ? '参加待ち' : !p.answer ? '未回答' : p.correct === true ? '○ 正解' : '× 不正解'));
       tile.append(avatar(p), detail); return tile;
     }));
     const needsLogin = view !== 'listener' && !(view === 'host' ? isHost : me?.role === 'player');

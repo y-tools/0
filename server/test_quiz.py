@@ -90,9 +90,12 @@ def run():
     for i, p in enumerate(players):
         request(p, 'answer', {'roundId': round_id, 'answer': f'answer-{i}'})
     request(players[0], 'answer', {'roundId': round_id, 'answer': 'LATEST'})
+    request(players[1], 'answer', {'roundId': round_id, 'answer': ' ＳＥＣＲＥＴ－ＣＯＲＲＥＣＴ '})
     public = request(guest)
     assert all(p['submitted'] for p in public['players'])
     assert not any('answer' in p for p in public['players'])
+    assert not any('correct' in p for p in public['players'])
+    assert not any('correct' in p for p in request(players[1])['players'])
     assert 'LATEST' in json.dumps(request(players[0])) and 'answer-1' not in json.dumps(request(players[0]))
     assert request(gm, 'host')['players'][0]['answer'] == 'LATEST'
     request(gm, 'admin/action', {'action': 'lobby', 'expectedRevision': -1}, expected=409)
@@ -105,8 +108,12 @@ def run():
     public = request(guest)
     assert public['question']['correctAnswer'] == 'SECRET-CORRECT'
     assert public['players'][0]['answer'] == 'LATEST'
+    assert public['players'][0]['correct'] is False
+    assert public['players'][1]['correct'] is True
+    assert public['players'][2]['correct'] is False
     action('show_question')
     assert request(guest)['game']['screen'] == 'question'
+    assert not any('correct' in p for p in request(guest)['players'])
     action('present', questionId=q['id'])
     action('start', duration=30)
     request(players[0], 'answer', {'roundId': round_id, 'answer': 'old-round'}, expected=409)
