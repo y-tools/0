@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sqlite3
 import sys
 import tempfile
 import time
@@ -46,7 +47,7 @@ def request(c, path='state', data=None, expected=200, origin=None):
 
 
 def run_posts(host, guest):
-    question = {'kind': 'question', 'sender': 'listener', 'label': '投稿問題', 'prompt': '投稿問題文', 'correctAnswer': '秘密の投稿正解', 'duration': 30}
+    question = {'kind': 'question', 'sender': 'listener', 'label': '投稿問題', 'genre': '国語', 'prompt': '投稿問題文', 'correctAnswer': '秘密の投稿正解', 'duration': 30}
     config = request(guest)['intake']
     request(guest, 'submit', {**question, 'batchId': config['questionBatch']}, expected=409)
     def settings(opened=True, limit=2, mode='off', reset=False):
@@ -64,6 +65,7 @@ def run_posts(host, guest):
     approved = request(host, 'admin/review', {'submissionId': first['id'], 'action': 'approve_question', 'label': '承認された漢字', 'prompt': 'この漢字の読みは？', 'correctAnswer': 'かんじ', 'duration': 30, 'imageIds': []})
     assert request(guest)['game']['phase'] == 'lobby'
     assert any(q['id'] == approved['id'] for q in request(host, 'host')['questions'])
+    assert next(q for q in request(host,'host')['questions'] if q['id']==approved['id'])['genre']=='国語'
     request(host, 'admin/review', {'submissionId': first['id'], 'action': 'approve_question'}, expected=409)
     request(host, 'admin/review', {'submissionId': second['id'], 'action': 'reject'})
     assert request(guest)['intake']['questionCount'] == 2
@@ -147,6 +149,7 @@ def run_bank(host, guest):
     action('present',questionId=added['questionIds'][0])
     public = request(guest)
     assert public['question']['bankWord'] == items[0]['word'] and 'correctAnswer' not in public['question']
+    assert public['question']['genre'] == '漢字の読み'
     assert items[0]['reading'] not in json.dumps(public,ensure_ascii=False)
     player = client()
     request(player,'login',{'id':'browser-player','password':'browser-test-pass'})
@@ -160,6 +163,44 @@ def run_bank(host, guest):
     assert request(guest)['players'][0]['correct'] is True
     action('lobby')
     print('PASS: 12000 stored records, 2000/level, six random filters, authorization, atomic add, duplicate prevention, exclusion and re-import persistence, hidden reading until reveal, kana reading normalization')
+
+
+def run_genres(host,guest):
+    data={'label':'ジャンル保存確認','prompt':'問題','correctAnswer':'正解','duration':30,'genre':'科学'}
+    question=request(host,'admin/question',data)
+    def current():return next(q for q in request(host,'host')['questions'] if q['id']==question['id'])
+    assert current()['genre']=='科学'
+    request(host,'admin/question',{**data,'id':question['id'],'genre':'地理'})
+    legacy_edit={**data,'id':question['id']}
+    del legacy_edit['genre']
+    request(host,'admin/question',legacy_edit)
+    assert current()['genre']=='地理','Older clients must preserve the stored genre'
+    request(host,'admin/question',{**data,'genre':'長'*41},expected=400)
+    request(host,'admin/question',{**data,'genre':['invalid']},expected=400)
+    request(host,'admin/action',{'action':'present','questionId':question['id'],'expectedRevision':request(host,'host')['game']['revision']})
+    assert request(guest)['question']['genre']=='地理'
+    request(host,'admin/action',{'action':'lobby','expectedRevision':request(host,'host')['game']['revision']})
+    request(host,'admin/question',{**data,'id':question['id'],'genre':''})
+    assert current()['genre']==''
+    # Recreate an older DB layout in a disposable backup, never touch the fixture's live data.
+    legacy=TEMP/'legacy-layout.sqlite3'
+    with server.db() as source,sqlite3.connect(legacy) as destination:source.backup(destination)
+    with sqlite3.connect(legacy) as connection:
+        connection.execute('DROP TABLE question_genres')
+        connection.execute('DROP TABLE submission_genres')
+        before=connection.execute('SELECT COUNT(*) FROM questions').fetchone()[0]
+    original=server.DB_PATH
+    try:
+        server.DB_PATH=legacy
+        server.initialize()
+        server.initialize()
+        with server.db() as connection:
+            assert connection.execute('SELECT COUNT(*) FROM questions').fetchone()[0]==before
+            assert server.question_row(connection,question['id'])['genre']==''
+            assert connection.execute('SELECT COUNT(*) FROM bank_items').fetchone()[0]==12000
+            assert connection.execute("SELECT COUNT(*) FROM question_genres WHERE genre='漢字の読み'").fetchone()[0]>0
+    finally:server.DB_PATH=original
+    print('PASS: genre create/edit/clear, older-client preservation, 40-char validation, approved-post inheritance, public display, legacy migration idempotence and bank genre backfill')
 
 def run():
     host, guest = client(), client()
@@ -249,6 +290,7 @@ def run():
     request(host, 'admin/player', {'slot': 1, 'id': 'browser-player', 'password': 'browser-test-pass'})
     run_posts(host, guest)
     run_bank(host, guest)
+    run_genres(host, guest)
     print('PASS: 4 players, overwrites, deadline, hidden answers, reveal, images, avatars, roles, delegation expiry/revoke, session revocation, stale rounds, CSRF')
     print('FIXTURE=' + str(TEMP))
 

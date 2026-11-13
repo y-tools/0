@@ -13,6 +13,8 @@ Owner ID: `Y`. The initial password is provisioned directly into the private dat
 
 ## Operation
 
+Question creation/editing and listener question submissions include an optional free-text ジャンル field (up to 40 characters, with suggestions). Genres carry through moderation, can be edited by the host before adoption, and appear in the host question list and active shared board label. Blank values display as 未分類 in host lists. Bank-added questions default to 漢字の読み. The additive question_genres/submission_genres tables preserve older layouts and original insert compatibility; older clients that omit a genre retain an existing question's genre. Existing bank-linked questions are backfilled once without replacing an explicit genre value.
+
 1. Configure up to four participants and optional avatars. Images are cropped to square 256×256. Blank passwords on new accounts are generated and shown once; on existing accounts blank preserves the current password. Changing ID/password or disabling a slot revokes that participant's sessions and removes their previous answers.
 2. Upload screen images (PNG/JPEG/WebP, under 6MB each; 400 total). Server validates and re-encodes them; screen images fit within 1920×1080. Register questions with a correct answer, a timer (1–3600 seconds) and optionally multiple images. Up to 200 questions.
 3. Select 出題 in the question list. This publishes the question and waits for スタート. Starting opens answers until the server-controlled deadline. Repeated submissions overwrite the same player's answer in the same round.

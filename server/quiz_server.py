@@ -140,7 +140,16 @@ def initialize():
           bank_id TEXT UNIQUE NOT NULL REFERENCES bank_items(id)
         );
         CREATE TABLE IF NOT EXISTS bank_meta (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS question_genres (
+          question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+          genre TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS submission_genres (
+          submission_id TEXT PRIMARY KEY REFERENCES submissions(id) ON DELETE CASCADE,
+          genre TEXT NOT NULL
+        );
         ''')
+        connection.execute("INSERT OR IGNORE INTO question_genres SELECT question_id,'漢字の読み' FROM question_bank_links")
         initial = {'revision': 0, 'phase': 'lobby', 'screen': 'lobby', 'questionId': None,
                    'roundId': None, 'deadlineMs': None, 'duration': 30, 'mediaId': None}
         connection.execute('INSERT OR IGNORE INTO game VALUES(1,?)', (json.dumps(initial),))
@@ -164,7 +173,7 @@ def save_game(connection, game):
 
 
 def question_row(connection, qid):
-    row = connection.execute('SELECT * FROM questions WHERE id=?', (qid,)).fetchone()
+    row = connection.execute("SELECT q.*,COALESCE(g.genre,'') AS genre FROM questions q LEFT JOIN question_genres g ON g.question_id=q.id WHERE q.id=?", (qid,)).fetchone()
     if row is None:
         raise Error(404, '問題が見つかりません。')
     return row
@@ -180,7 +189,7 @@ def media_url(connection, mid, kind=None):
 
 
 def question_dict(row):
-    return {'id': row['id'], 'label': row['label'], 'prompt': row['prompt'],
+    return {'id': row['id'], 'label': row['label'], 'genre': row['genre'], 'prompt': row['prompt'],
             'correctAnswer': row['correct_answer'], 'duration': row['duration'],
             'imageIds': json.loads(row['image_ids'])}
 
@@ -259,7 +268,7 @@ def bank_action(connection, data):
         item = connection.execute('SELECT * FROM bank_items WHERE id=? AND release=? AND enabled=1', (bid,version)).fetchone()
         if item is None or connection.execute('SELECT 1 FROM question_bank_links WHERE bank_id=?', (bid,)).fetchone():
             raise Error(409, 'すでに追加・除外された問題があります。選び直してください。')
-        result = save_question(connection, {'label': BANK_LEVELS[item['level']] + ' 読み：' + item['word'], 'prompt': item['word'], 'correctAnswer': item['reading'], 'duration': duration})
+        result = save_question(connection, {'label': BANK_LEVELS[item['level']] + ' 読み：' + item['word'], 'genre': '漢字の読み', 'prompt': item['word'], 'correctAnswer': item['reading'], 'duration': duration})
         connection.execute('INSERT INTO question_bank_links VALUES(?,?)', (result['id'], bid))
         added.append(result['id'])
     return {'ok': True, 'questionIds': added}
@@ -303,6 +312,8 @@ def save_question(connection, data):
     if game['questionId'] == qid and game['phase'] in ('question', 'answering', 'timeup'):
         raise Error(409, '出題中の問題は編集できません。待機画面へ戻してから編集してください。')
     label = text(data.get('label'), 100, '問題タイトル', True)
+    stored_genre = connection.execute('SELECT genre FROM question_genres WHERE question_id=?', (qid,)).fetchone()
+    genre = text(data.get('genre', stored_genre['genre'] if stored_genre else ''), 40, 'ジャンル')
     prompt = text(data.get('prompt', ''), 2000, '問題文')
     correct = text(data.get('correctAnswer'), 1000, '正解', True)
     duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
@@ -313,6 +324,7 @@ def save_question(connection, data):
         raise Error(400, '問題文または問題画像を設定してください。')
     connection.execute('INSERT INTO questions VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,prompt=excluded.prompt,correct_answer=excluded.correct_answer,duration=excluded.duration,image_ids=excluded.image_ids',
                        (qid, label, prompt, correct, duration, json.dumps(ids), now_ms()))
+    connection.execute('INSERT INTO question_genres VALUES(?,?) ON CONFLICT(question_id) DO UPDATE SET genre=excluded.genre', (qid, genre))
     return {'ok': True, 'id': qid}
 
 
@@ -321,13 +333,14 @@ def submit_post(connection, data, ip):
     kind = data.get('kind')
     sender = text(data.get('sender', ''), 40, '投稿者名') or 'リスナー'
     prompt = text(data.get('prompt'), 2000 if kind == 'question' else 300, '投稿内容', True)
-    mid, slot, target, round_id, label, correct, duration = None, None, None, None, '', '', 30
+    mid, slot, target, round_id, label, correct, duration, genre = None, None, None, None, '', '', 30, ''
     if kind == 'question':
         if not config['questionOpen'] or config['questionRemaining'] <= 0:
             raise Error(409, '問題投稿は受付停止中、または上限に達しています。')
         if data.get('batchId') != config['questionBatch']:
             raise Error(409, '問題受付が切り替わりました。画面を確認して再投稿してください。')
         label = text(data.get('label'), 100, '問題タイトル', True)
+        genre = text(data.get('genre', ''), 40, 'ジャンル')
         correct = text(data.get('correctAnswer'), 1000, '正解', True)
         duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
     elif kind == 'hint':
@@ -359,6 +372,8 @@ def submit_post(connection, data, ip):
     sid = secrets.token_hex(16)
     connection.execute('INSERT INTO submissions VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                        (sid, kind, mid, slot, target, round_id, config['questionBatch'], sender, label, prompt, correct, duration, 'pending', 0, None, stamp))
+    if kind == 'question':
+        connection.execute('INSERT INTO submission_genres VALUES(?,?)', (sid, genre))
     # Bound reviewed history without deleting the current question-reception count.
     connection.execute("DELETE FROM submissions WHERE status!='pending' AND visible=0 AND (kind!='question' OR batch_id!=?) AND id NOT IN (SELECT id FROM submissions ORDER BY created_ms DESC LIMIT 1000)", (config['questionBatch'],))
     return {'ok': True, 'id': sid}
@@ -366,7 +381,7 @@ def submit_post(connection, data, ip):
 
 def review_post(connection, data):
     sid = text(data.get('submissionId'), 40, '投稿ID', True)
-    post = connection.execute('SELECT * FROM submissions WHERE id=?', (sid,)).fetchone()
+    post = connection.execute("SELECT s.*,COALESCE(g.genre,'') AS genre FROM submissions s LEFT JOIN submission_genres g ON g.submission_id=s.id WHERE s.id=?", (sid,)).fetchone()
     if post is None:
         raise Error(404, '投稿が見つかりません。')
     action = data.get('action')
@@ -377,7 +392,7 @@ def review_post(connection, data):
     elif action == 'approve_question':
         if post['kind'] != 'question' or post['status'] != 'pending':
             raise Error(409, 'この問題はすでに確認済みです。')
-        approved = save_question(connection, {**data, 'id': None})
+        approved = save_question(connection, {**data, 'id': None, 'genre': data.get('genre', post['genre'])})
         connection.execute("UPDATE submissions SET status='approved',question_id=? WHERE id=?", (approved['id'], sid))
         return approved
     elif action in ('publish_hint', 'hide_hint'):
@@ -406,7 +421,7 @@ def public_state(connection, me=None, host=False):
     active, bank_question = None, False
     if game['questionId'] and game['phase'] != 'lobby':
         row = question_row(connection, game['questionId'])
-        active = {'label': row['label'], 'prompt': row['prompt']}
+        active = {'label': row['label'], 'genre': row['genre'], 'prompt': row['prompt']}
         bank = connection.execute('SELECT b.word,b.reading FROM bank_items b JOIN question_bank_links l ON l.bank_id=b.id WHERE l.question_id=?', (row['id'],)).fetchone()
         bank_question = bool(bank and bank['word'] == row['prompt'] and bank['reading'] == row['correct_answer'])
         if bank_question:
@@ -446,13 +461,13 @@ def public_state(connection, me=None, host=False):
     if host:
         result['bank'] = bank_summary(connection)
         result['game']['questionId'] = game['questionId']
-        result['questions'] = [question_dict(r) for r in connection.execute('SELECT * FROM questions ORDER BY created_ms,id')]
+        result['questions'] = [question_dict(r) for r in connection.execute("SELECT q.*,COALESCE(g.genre,'') AS genre FROM questions q LEFT JOIN question_genres g ON g.question_id=q.id ORDER BY q.created_ms,q.id")]
         result['media'] = [{'id': r['id'], 'label': r['label'], 'url': media_url(connection, r['id'])}
                            for r in connection.execute("SELECT * FROM media WHERE kind='screen' ORDER BY created_ms DESC")]
         result['accounts'] = [{'slot': r['slot'], 'id': r['id'], 'enabled': bool(r['enabled']),
                                'avatarId': r['avatar_id'], 'avatar': media_url(connection, r['avatar_id'], 'avatar')}
                               for r in connection.execute("SELECT * FROM users WHERE role='player' ORDER BY slot")]
-        result['submissions'] = [dict(r) for r in connection.execute("SELECT * FROM submissions WHERE status='pending' OR (kind='hint' AND status='approved' AND round_id=?) ORDER BY created_ms DESC,id LIMIT 700", (game['roundId'],))]
+        result['submissions'] = [dict(r) for r in connection.execute("SELECT s.*,COALESCE(g.genre,'') AS genre FROM submissions s LEFT JOIN submission_genres g ON g.submission_id=s.id WHERE s.status='pending' OR (s.kind='hint' AND s.status='approved' AND s.round_id=?) ORDER BY s.created_ms DESC,s.id LIMIT 700", (game['roundId'],))]
         if me and me['role'] == 'owner':
             result['delegates'] = [{'id': r['id'], 'expiresMs': r['expires_ms']}
                                    for r in connection.execute("SELECT * FROM users WHERE role='gm' ORDER BY created_ms DESC")]

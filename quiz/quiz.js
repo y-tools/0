@@ -98,7 +98,7 @@
     $('global-hint').hidden = !state.globalHint;
     $('global-hint-text').textContent = state.globalHint || '';
     $('board').classList.toggle('has-global-hint', !!state.globalHint);
-    $('board-label').textContent = state.question?.label || 'みんなで漢字';
+    $('board-label').textContent = state.question ? [state.question.genre, state.question.label].filter(Boolean).join(' / ') : 'みんなで漢字';
     $('board-phase').textContent = phases[game.phase];
     $('board').classList.toggle('revealed', revealed);
     renderStage();
@@ -158,7 +158,7 @@
       questionKey = qkey;
       $('question-list').replaceChildren(...state.questions.map(q => {
         const row = node('div', 'question-row' + (q.id === game.questionId ? ' current' : ''));
-        const info = node('div', 'question-info'); info.append(node('strong', '', q.label), node('small', '', `${q.duration}秒 / 画像${q.imageIds.length}枚`));
+        const info = node('div', 'question-info'); info.append(node('strong', '', q.label), node('small', '', `${q.genre || '未分類'} / ${q.duration}秒 / 画像${q.imageIds.length}枚`));
         row.append(info, button('編集', () => editQuestion(q), true), button('出題', () => {
           if (game.phase === 'answering' && !confirm('回答受付中です。現在の回答を締め切って次の出題に進みますか？')) return;
           action('present', {questionId: q.id});
@@ -248,10 +248,10 @@
     const questions = state.submissions.filter(p=>p.kind === 'question' && p.status === 'pending');
     $('question-post-list').replaceChildren(...questions.map(post=>{
       const card = node('article', 'post-card'); card.dataset.id = post.id;
-      card.append(node('small','muted',`${post.sender} / ${new Date(post.created_ms).toLocaleString('ja-JP')}`), node('h3','',post.label), node('p','post-body',post.prompt), node('p','post-answer','正解：' + post.correct_answer));
+      card.append(node('small','muted',`${post.sender} / ${new Date(post.created_ms).toLocaleString('ja-JP')}`), node('h3','',post.label), node('p','muted','ジャンル：' + (post.genre || '未分類')), node('p','post-body',post.prompt), node('p','post-answer','正解：' + post.correct_answer));
       const controls = node('div','post-controls');
       controls.append(button('確認・編集して採用',()=>{
-        editQuestion({label:post.label,prompt:post.prompt,correctAnswer:post.correct_answer,duration:post.duration,imageIds:[]});
+        editQuestion({label:post.label,genre:post.genre,prompt:post.prompt,correctAnswer:post.correct_answer,duration:post.duration,imageIds:[]});
         $('question-submission-id').value = post.id;
         $('question-heading').textContent = '投稿された問題を確認・編集';
       }), button('不採用',()=>reviewPost(post.id,'reject'),true));
@@ -286,6 +286,7 @@
   function editQuestion(q = null) {
     $('question-submission-id').value = '';
     $('question-form').reset(); $('question-id').value = q?.id || ''; $('question-label').value = q?.label || ''; $('question-prompt').value = q?.prompt || ''; $('question-correct').value = q?.correctAnswer || ''; $('question-duration').value = q?.duration || 30;
+    $('question-genre').value = q?.genre || '';
     $('question-images').querySelectorAll('input').forEach(input => input.checked = !!q?.imageIds.includes(input.value));
     $('question-heading').textContent = q ? '問題を編集' : '問題を作る';
     $('question-heading').scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -329,14 +330,14 @@
   $('show-question').addEventListener('click', () => action('show_question'));
   $('lobby').addEventListener('click', () => { if (state.game.phase !== 'answering' || confirm('回答受付を終了して待機画面に戻しますか？')) action('lobby'); });
   $('new-question').addEventListener('click', () => editQuestion());
-  $('question-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const submissionId = $('question-submission-id').value; const data = {id: $('question-id').value || undefined, label: $('question-label').value, prompt: $('question-prompt').value, correctAnswer: $('question-correct').value, duration: Number($('question-duration').value), imageIds: [...$('question-images').querySelectorAll('input:checked')].map(input => input.value)}; const result = await api(submissionId ? 'admin/review' : 'admin/question', submissionId ? {...data,submissionId,action:'approve_question'} : data); $('question-submission-id').value=''; $('question-id').value = result.id; $('question-heading').textContent = '問題を編集'; }, '問題一覧に保存しました。一覧の「出題」で公開できます。'); });
+  $('question-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const submissionId = $('question-submission-id').value; const data = {id: $('question-id').value || undefined, label: $('question-label').value, genre: $('question-genre').value, prompt: $('question-prompt').value, correctAnswer: $('question-correct').value, duration: Number($('question-duration').value), imageIds: [...$('question-images').querySelectorAll('input:checked')].map(input => input.value)}; const result = await api(submissionId ? 'admin/review' : 'admin/question', submissionId ? {...data,submissionId,action:'approve_question'} : data); $('question-submission-id').value=''; $('question-id').value = result.id; $('question-heading').textContent = '問題を編集'; }, '問題一覧に保存しました。一覧の「出題」で公開できます。'); });
   $('screen-upload').addEventListener('change', () => { const files = [...$('screen-upload').files]; work(async () => { let completed = 0; try { for (const file of files) { await upload(file, 'screen'); completed++; } } catch (error) { error.message = `${completed}枚を保存しました。` + error.message; throw error; } finally { $('screen-upload').value = ''; } }, files.length + '枚の画像を追加しました。'); });
   $('delegate-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const result = await api('admin/delegate', {id: $('delegate-id').value, password: $('delegate-password').value, hours: Number($('delegate-hours').value)}); $('delegate-result').textContent = `ID：${result.id}\nパスワード：${result.password}\n期限：${new Date(result.expiresMs).toLocaleString('ja-JP')}\n委任先への共有用です。控えてから画面を閉じてください。`; $('delegate-password').value = ''; }, '委任IDを発行しました。'); });
   $('fullscreen').addEventListener('click', () => { const popup = window.open('./?view=screen','yplusKanjiScreen','popup=yes,width=1280,height=720,resizable=yes,scrollbars=no'); if (!popup) message('別ウィンドウがブロックされました。このサイトのポップアップを許可して再度開いてください。',true); else popup.focus(); });
   $('post-hint-mode').addEventListener('change',()=>{$('post-hint-target-label').hidden=$('post-hint-mode').value!=='private';});
   $('intake-form').addEventListener('submit',event=>{event.preventDefault();saveReception();});
   $('intake-reset').addEventListener('click',()=>{if($('intake-form').reportValidity() && confirm('以前の投稿を確認一覧に残したまま、受付件数を0に戻して問題受付を開始しますか？')) saveReception(true);});
-  $('post-question-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'question',batchId:state.intake.questionBatch,sender:$('post-question-sender').value,label:$('post-question-label').value,prompt:$('post-question-prompt').value,correctAnswer:$('post-question-correct').value,duration:Number($('post-question-duration').value)});$('post-question-form').reset();},'問題を投稿しました。ゲームマスターの確認をお待ちください。');});
+  $('post-question-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'question',batchId:state.intake.questionBatch,sender:$('post-question-sender').value,label:$('post-question-label').value,genre:$('post-question-genre').value,prompt:$('post-question-prompt').value,correctAnswer:$('post-question-correct').value,duration:Number($('post-question-duration').value)});$('post-question-form').reset();},'問題を投稿しました。ゲームマスターの確認をお待ちください。');});
   $('post-hint-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'hint',roundId:$('post-hint-form').dataset.round,sender:$('post-hint-sender').value,mode:$('post-hint-mode').value,slot:Number($('post-hint-target').value),prompt:$('post-hint-prompt').value});$('post-hint-prompt').value='';},'ヒントを投稿しました。承認されると表示されます。');});
   $('bank-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{const result=await api('admin/bank',{action:'sample',level:$('bank-level').value,count:Number($('bank-count').value)});bankPreview=result.items;renderBankPreview();},'漢字と読みを確認し、使う問題を追加してください。');});
   $('bank-add').addEventListener('click',()=>work(async()=>{await api('admin/bank',{action:'add',ids:bankPreview.map(p=>p.id),duration:Number($('bank-duration').value)});bankPreview=[];renderBankPreview();},'問題一覧へ追加しました。「出題」でゲーム画面に表示できます。'));
