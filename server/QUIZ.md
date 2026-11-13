@@ -7,6 +7,7 @@ Independent Python/SQLite service. Does not import or share credentials, cookies
 - `/quiz/`: listener, 16:9 board, no login required.
 - `/quiz/?view=player`: participant login and latest-answer submission.
 - `/quiz/?view=host`: game master login and controls.
+- `/quiz/?view=screen`: board-only window. The 別ウィンドウで表示 button opens this view. It fits a 16:9 board inside any window size with black margins as needed; no control panels or submission forms are rendered visibly.
 
 Owner ID: `Y`. The initial password is provisioned directly into the private database as a salted scrypt hash; no password is included in this repository. Sessions last at most 12 hours. Delegated game masters expire after the configured 1–168 hours and can be revoked by the owner. Delegates can manage questions, images, accounts and the game, but cannot create/revoke delegates.
 
@@ -17,6 +18,18 @@ Owner ID: `Y`. The initial password is provisioned directly into the private dat
 3. Select 出題 in the question list. This publishes the question and waits for スタート. Starting opens answers until the server-controlled deadline. Repeated submissions overwrite the same player's answer in the same round.
 4. The deadline closes answers and displays TIME UP. 正解を表示 publishes the correct answer and the four latest answers in a 2×2 grid. Correct answers have red panels; incorrect or missing answers have gray panels. Matching uses Unicode NFKC normalization and trims leading/trailing whitespace, then compares exactly. Before reveal, no correctness verdict is sent to players or listeners. Only the game master can see every answer; a player can see their own. Future questions and correct answers are excluded from public state.
 5. Click a screen image, 問題画面, 正解を表示, or 待機画面 to switch the shared display. Image switches preserve an active timer. A new 出題 creates a fresh round. 待機画面 closes any running timer.
+
+## Listener submissions and hints
+
+Both receptions default to closed. In リスナー投稿の受付 the game master can enable question submissions, set a **global total** cap of 1–200 questions for the current reception, and choose hints: off / private only / global only / both. The cap includes pending, approved and rejected posts; reaching it closes public reception automatically. 件数をリセットして問題受付を開始 creates a fresh reception count while retaining pending posts for review. Changing the cap alone does not reset it. Concurrent submissions are serialized by SQLite so the cap cannot be exceeded.
+
+Listener forms require no login. Questions include a title, prompt, correct answer and duration. They remain private to game masters until a host chooses 確認・編集して採用, edits/saves the question, and then separately clicks 出題 in the question list. Saving an adopted post never auto-presents it. 不採用 dismisses a pending post. Neither the submission queue nor submitted correct answers are returned by public APIs.
+
+Hints refer to the current question round. A listener can select an enabled player for a private hint, or the shared game board for a global hint, according to the reception setting. A game master previews/edits the hint and explicitly publishes it. Only one hint per destination is visible at a time; 非表示にする hides it and approved hints can be shown again. Private hints are returned only to that authenticated player and are displayed in their answering panel, never in the shared board or popup. Global hints appear on every shared game board. A new round or 待機画面 clears displayed hints; stale-round posts cannot be published. Player identity is checked again before publishing, preventing a replaced player from receiving a previous player's hint.
+
+The server limits pending posts to 500, hint posts to 200 per round, and anonymous submissions to 30/minute per IP. Reviewed history is bounded while preserving the current reception count. Additive SQLite tables are created on startup, preserving existing accounts, questions, images, sessions and active game state.
+
+Run `python server/test_quiz.py` in a disposable local environment (Pillow required) for the game and submission integration checks. `--serve` keeps its local fixture running on port 18793 for browser checks. Never run test fixtures against production state.
 
 ## Deployment
 

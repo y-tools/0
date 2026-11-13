@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = Path(__file__).resolve().parent
 if HERE.name == 'server':
@@ -41,6 +42,83 @@ def request(c, path='state', data=None, expected=200, origin=None):
         status, result = error.code, json.load(error)
     assert status == expected, (path, status, result)
     return result
+
+
+def run_posts(host, guest):
+    question = {'kind': 'question', 'sender': 'listener', 'label': '投稿問題', 'prompt': '投稿問題文', 'correctAnswer': '秘密の投稿正解', 'duration': 30}
+    config = request(guest)['intake']
+    request(guest, 'submit', {**question, 'batchId': config['questionBatch']}, expected=409)
+    def settings(opened=True, limit=2, mode='off', reset=False):
+        current = request(host, 'host')['intake']
+        request(host, 'admin/intake', {'expectedRevision': current['revision'], 'questionOpen': opened, 'questionLimit': limit, 'hintMode': mode, 'resetQuestions': reset})
+        return request(guest)['intake']
+    config = settings()
+    first = request(guest, 'submit', {**question, 'batchId': config['questionBatch']})
+    second = request(guest, 'submit', {**question, 'batchId': config['questionBatch']})
+    request(guest, 'submit', {**question, 'batchId': config['questionBatch']}, expected=409)
+    public = request(guest)
+    assert public['intake']['questionCount'] == 2 and public['intake']['questionRemaining'] == 0
+    assert '秘密の投稿正解' not in json.dumps(public, ensure_ascii=False)
+    request(guest, 'admin/review', {'submissionId': first['id'], 'action': 'reject'}, expected=401)
+    approved = request(host, 'admin/review', {'submissionId': first['id'], 'action': 'approve_question', 'label': '承認された漢字', 'prompt': 'この漢字の読みは？', 'correctAnswer': 'かんじ', 'duration': 30, 'imageIds': []})
+    assert request(guest)['game']['phase'] == 'lobby'
+    assert any(q['id'] == approved['id'] for q in request(host, 'host')['questions'])
+    request(host, 'admin/review', {'submissionId': first['id'], 'action': 'approve_question'}, expected=409)
+    request(host, 'admin/review', {'submissionId': second['id'], 'action': 'reject'})
+    assert request(guest)['intake']['questionCount'] == 2
+    old_batch = config['questionBatch']
+    config = settings(limit=1, reset=True)
+    assert config['questionCount'] == 0
+    request(guest, 'submit', {**question, 'batchId': old_batch}, expected=409)
+    # Even simultaneous anonymous posts cannot exceed the reception cap.
+    def race(_):
+        body = json.dumps({**question, 'batchId': config['questionBatch']}).encode()
+        req = urllib.request.Request(f'http://127.0.0.1:{PORT}/quiz/api/submit', data=body, headers={'Content-Type': 'application/json', 'Origin': os.environ['QUIZ_ORIGIN']})
+        try:
+            with client().open(req) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(race, range(2))) == [200, 409]
+    def action(name, **extra):
+        request(host, 'admin/action', {'action': name, 'expectedRevision': request(host, 'host')['game']['revision'], **extra})
+    action('present', questionId=approved['id'])
+    round_id = request(guest)['game']['roundId']
+    private = {'kind': 'hint', 'mode': 'private', 'slot': 1, 'roundId': round_id, 'prompt': 'PRIVATE BEFORE REVIEW'}
+    global_hint = {'kind': 'hint', 'mode': 'global', 'roundId': round_id, 'prompt': 'GLOBAL BEFORE REVIEW'}
+    request(guest, 'submit', private, expected=409)
+    settings(mode='private')
+    request(guest, 'submit', global_hint, expected=409)
+    private_id = request(guest, 'submit', private)['id']
+    settings(mode='global')
+    request(guest, 'submit', private, expected=409)
+    global_id = request(guest, 'submit', global_hint)['id']
+    target = client()
+    request(target, 'login', {'id': 'browser-player', 'password': 'browser-test-pass'})
+    other = client()
+    replacement = request(host, 'admin/player', {'slot': 2, 'id': 'p2', 'password': 'post-test-other'})
+    request(other, 'login', {'id': 'p2', 'password': 'post-test-other'})
+    assert request(target)['privateHint'] is None and request(guest)['globalHint'] is None
+    request(host, 'admin/review', {'submissionId': private_id, 'action': 'publish_hint', 'prompt': 'PRIVATE APPROVED'})
+    assert request(target)['privateHint'] == 'PRIVATE APPROVED'
+    assert request(other)['privateHint'] is None and request(guest)['privateHint'] is None
+    assert 'PRIVATE APPROVED' not in json.dumps(request(guest))
+    request(other, 'admin/review', {'submissionId': global_id, 'action': 'publish_hint'}, expected=403)
+    request(host, 'admin/review', {'submissionId': global_id, 'action': 'publish_hint', 'prompt': 'GLOBAL APPROVED'})
+    assert request(guest)['globalHint'] == 'GLOBAL APPROVED'
+    request(host, 'admin/review', {'submissionId': private_id, 'action': 'hide_hint'})
+    assert request(target)['privateHint'] is None
+    request(host, 'admin/review', {'submissionId': global_id, 'action': 'hide_hint'})
+    assert request(guest)['globalHint'] is None
+    settings(mode='both')
+    stale = request(guest, 'submit', private)['id']
+    action('present', questionId=approved['id'])
+    request(host, 'admin/review', {'submissionId': stale, 'action': 'publish_hint'}, expected=409)
+    assert request(target)['privateHint'] is None and request(guest)['globalHint'] is None
+    action('lobby')
+    settings(opened=False, mode='off')
+    print('PASS: reception controls, global question cap including simultaneous posts, reset batches, review-only question publication, hint modes, private isolation, edited hint approval, hide, stale-round rejection')
 
 def run():
     host, guest = client(), client()
@@ -128,6 +206,7 @@ def run():
     request(client(), 'login', {'id': 'expired', 'password': expired['password']}, expected=401)
     # Keep a separate clean fixture for the browser smoke check.
     request(host, 'admin/player', {'slot': 1, 'id': 'browser-player', 'password': 'browser-test-pass'})
+    run_posts(host, guest)
     print('PASS: 4 players, overwrites, deadline, hidden answers, reveal, images, avatars, roles, delegation expiry/revoke, session revocation, stale rounds, CSRF')
     print('FIXTURE=' + str(TEMP))
 

@@ -6,10 +6,12 @@
     return;
   }
   const $ = id => document.getElementById(id);
-  const view = ['host', 'player'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'listener';
+  const view = ['host', 'player', 'screen'].includes(new URLSearchParams(location.search).get('view')) ? new URLSearchParams(location.search).get('view') : 'listener';
   const phases = {lobby: '待機中', question: 'スタート待ち', answering: '回答受付中', timeup: '回答受付終了', answer: '正解発表'};
   let state = null, offset = 0, polling = false, accountKey = '', questionKey = '', mediaKey = '', delegateKey = '', round = null, boardKey = '', busy = 0, draftImages = [];
-  document.querySelector(`[data-view="${view}"]`).setAttribute('aria-current', 'page');
+  let postKey = '', hintModeKey = '', targetKey = '';
+  document.querySelector(`[data-view="${view}"]`)?.setAttribute('aria-current', 'page');
+  if (view === 'screen') { document.body.classList.add('screen-only'); window.opener = null; }
   function node(tag, className, content) {
     const e = document.createElement(tag);
     if (className) e.className = className;
@@ -91,6 +93,9 @@
     const {game, me} = state;
     const isHost = !!state.questions;
     const revealed = game.screen === 'answer' && game.phase === 'answer';
+    $('global-hint').hidden = !state.globalHint;
+    $('global-hint-text').textContent = state.globalHint || '';
+    $('board').classList.toggle('has-global-hint', !!state.globalHint);
     $('board-label').textContent = state.question?.label || 'みんなで漢字';
     $('board-phase').textContent = phases[game.phase];
     $('board').classList.toggle('revealed', revealed);
@@ -107,13 +112,15 @@
       if (revealed) detail.append(node('span', 'verdict', !p.id ? '参加待ち' : !p.answer ? '未回答' : p.correct === true ? '○ 正解' : '× 不正解'));
       tile.append(avatar(p), detail); return tile;
     }));
-    const needsLogin = view !== 'listener' && !(view === 'host' ? isHost : me?.role === 'player');
+    const needsLogin = ['host', 'player'].includes(view) && !(view === 'host' ? isHost : me?.role === 'player');
     $('login-panel').hidden = !needsLogin;
     $('player-panel').hidden = view !== 'player' || me?.role !== 'player';
     $('host-panel').hidden = view !== 'host' || !isHost;
     $('login-heading').textContent = view === 'host' ? 'ゲームマスターログイン' : '回答者ログイン';
     $('login-help').textContent = me && needsLogin ? `現在は ${me.id} でログイン中です。対応するIDでログインし直してください。` : view === 'host' ? 'オーナー、または委任されたIDでログインしてください。' : 'ゲームマスターから受け取ったIDとパスワードを入力してください。';
     if (view === 'player' && me?.role === 'player') {
+      $('private-hint').hidden = !state.privateHint;
+      $('private-hint-text').textContent = state.privateHint || '';
       $('player-name').textContent = me.id + ' さんの回答';
       if (round !== game.roundId) { round = game.roundId; $('answer-input').value = ''; }
       const own = state.players.find(p => p.slot === me.slot);
@@ -121,6 +128,8 @@
       $('last-answer').textContent = own?.answer ? '送信済み：' + own.answer : '';
       $('answer-input').disabled = game.phase !== 'answering';
     }
+    $('listener-posts').hidden = view !== 'listener';
+    if (view === 'listener') renderReception();
     if (isHost && view === 'host') renderHost();
     tick();
   }
@@ -130,6 +139,7 @@
   }
   function renderHost() {
     const {game, me} = state;
+    renderPostManagement();
     $('host-name').textContent = '進行コントロール / ' + me.id;
     $('host-phase').textContent = phases[game.phase];
     const current = state.questions.find(q => q.id === game.questionId);
@@ -173,7 +183,87 @@
       $('delegate-list').replaceChildren(...(state.delegates || []).map(d => { const row = node('div', 'delegate-row'); row.append(node('span', '', d.id + ' / ' + new Date(d.expiresMs).toLocaleString('ja-JP') + ' まで'), button('委任を解除', () => work(async () => { if (confirm(d.id + ' の委任を解除しますか？')) await api('admin/delegate', {action: 'revoke', id: d.id}); }, '委任を更新しました。'), true)); return row; }));
     }
   }
+  function renderReception() {
+    const intake = state.intake;
+    if (!intake) return;
+    const questionsOpen = intake.questionOpen && intake.questionRemaining > 0;
+    $('question-reception').textContent = questionsOpen ? `受付中 / 残り${intake.questionRemaining}問` : '受付停止中';
+    $('post-question-fields').disabled = !questionsOpen;
+    const hintAllowed = ['question', 'answering', 'timeup'].includes(state.game.phase) && intake.hintMode !== 'off';
+    $('hint-reception').textContent = hintAllowed ? {private:'個別のみ受付中', global:'全体のみ受付中', both:'個別・全体受付中'}[intake.hintMode] : '受付停止中';
+    $('post-hint-fields').disabled = !hintAllowed;
+    if (hintModeKey !== intake.hintMode) {
+      hintModeKey = intake.hintMode;
+      const selected = $('post-hint-mode').value;
+      const modes = intake.hintMode === 'both' ? ['global', 'private'] : intake.hintMode === 'off' ? [] : [intake.hintMode];
+      $('post-hint-mode').replaceChildren(...modes.map(mode => { const option = node('option', '', mode === 'private' ? '個別ヒント（指定の回答者へ）' : '全体ヒント（ゲーム画面へ）'); option.value = mode; return option; }));
+      if (modes.includes(selected)) $('post-hint-mode').value = selected;
+    }
+    const tkey = JSON.stringify(state.players.map(p=>[p.slot,p.id]));
+    if (tkey !== targetKey) {
+      targetKey = tkey; const selected = $('post-hint-target').value;
+      $('post-hint-target').replaceChildren(...state.players.filter(p=>p.id).map(p=>{const option=node('option','',p.id);option.value=p.slot;return option;}));
+      if ([...$('post-hint-target').options].some(o=>o.value===selected)) $('post-hint-target').value = selected;
+    }
+    $('post-hint-target-label').hidden = $('post-hint-mode').value !== 'private';
+    const nextRound = state.game.roundId || '';
+    if ($('post-hint-form').dataset.round !== nextRound) {
+      if ($('post-hint-prompt').value) message('出題が変わったため、ヒントの入力欄を更新しました。');
+      $('post-hint-prompt').value = ''; $('post-hint-form').dataset.round = nextRound;
+    }
+  }
+  function renderPostManagement() {
+    const intake = state.intake;
+    $('intake-count').textContent = `${intake.questionCount} / ${intake.questionLimit}問受信`;
+    if (!$('intake-form').dataset.loaded) {
+      $('intake-question-open').checked = intake.questionOpen;
+      $('intake-question-limit').value = intake.questionLimit;
+      $('intake-hint-mode').value = intake.hintMode;
+      $('intake-form').dataset.loaded = String(intake.revision);
+    }
+    const key = JSON.stringify([state.submissions, state.game.roundId, state.game.phase, state.players.map(p=>[p.slot,p.id])]);
+    if (key === postKey || (document.activeElement?.matches('textarea') && $('hint-post-list').contains(document.activeElement))) return;
+    postKey = key;
+    const questions = state.submissions.filter(p=>p.kind === 'question' && p.status === 'pending');
+    $('question-post-list').replaceChildren(...questions.map(post=>{
+      const card = node('article', 'post-card'); card.dataset.id = post.id;
+      card.append(node('small','muted',`${post.sender} / ${new Date(post.created_ms).toLocaleString('ja-JP')}`), node('h3','',post.label), node('p','post-body',post.prompt), node('p','post-answer','正解：' + post.correct_answer));
+      const controls = node('div','post-controls');
+      controls.append(button('確認・編集して採用',()=>{
+        editQuestion({label:post.label,prompt:post.prompt,correctAnswer:post.correct_answer,duration:post.duration,imageIds:[]});
+        $('question-submission-id').value = post.id;
+        $('question-heading').textContent = '投稿された問題を確認・編集';
+      }), button('不採用',()=>reviewPost(post.id,'reject'),true));
+      card.append(controls); return card;
+    }));
+    if (!questions.length) $('question-post-list').append(node('p','muted','確認待ちの問題はありません。'));
+    const hints = state.submissions.filter(p=>p.kind === 'hint');
+    $('hint-post-list').replaceChildren(...hints.map(post=>{
+      const card = node('article', 'post-card'); card.dataset.id = post.id;
+      const stale = post.round_id !== state.game.roundId || state.game.phase === 'lobby';
+      const destination = post.mode === 'private' ? `${post.target_id} への個別ヒント` : '全体ヒント';
+      card.append(node('small','muted',post.sender + ' / ' + destination), node('h3','',stale ? '前の問題への投稿' : post.visible ? '表示中' : post.status === 'approved' ? '承認済み・非表示' : '確認待ち'));
+      const input = node('textarea','hint-review-input'); input.value = post.prompt; input.maxLength = 300; input.rows = 3; input.setAttribute('aria-label','確認・編集するヒント'); card.append(input);
+      const controls = node('div','post-controls');
+      const publish = button(post.mode === 'private' ? 'この回答者に表示' : 'ゲーム画面に表示',()=>reviewPost(post.id,'publish_hint',input.value)); publish.disabled = stale;
+      controls.append(publish);
+      if (post.visible) controls.append(button('非表示にする',()=>reviewPost(post.id,'hide_hint'),true));
+      if (post.status === 'pending') controls.append(button('不採用',()=>reviewPost(post.id,'reject'),true));
+      card.append(controls); return card;
+    }));
+    if (!hints.length) $('hint-post-list').append(node('p','muted','ヒントの投稿はありません。'));
+  }
+  function reviewPost(submissionId, actionName, prompt) { return work(async()=>{ await api('admin/review',{submissionId,action:actionName,...(prompt === undefined ? {} : {prompt})}); postKey=''; }, actionName === 'publish_hint' ? 'ヒントを表示しました。' : '投稿を更新しました。'); }
+  function saveReception(resetQuestions = false) {
+    return work(async()=>{
+      try {
+        await api('admin/intake',{expectedRevision:Number($('intake-form').dataset.loaded),questionOpen:resetQuestions || $('intake-question-open').checked,questionLimit:Number($('intake-question-limit').value),hintMode:$('intake-hint-mode').value,resetQuestions});
+      } catch(error) { if(error.status===409) delete $('intake-form').dataset.loaded; throw error; }
+      delete $('intake-form').dataset.loaded;
+    }, resetQuestions ? '件数をリセットして問題受付を開始しました。以前の投稿は確認一覧に残ります。' : '受付設定を保存しました。');
+  }
   function editQuestion(q = null) {
+    $('question-submission-id').value = '';
     $('question-form').reset(); $('question-id').value = q?.id || ''; $('question-label').value = q?.label || ''; $('question-prompt').value = q?.prompt || ''; $('question-correct').value = q?.correctAnswer || ''; $('question-duration').value = q?.duration || 30;
     $('question-images').querySelectorAll('input').forEach(input => input.checked = !!q?.imageIds.includes(input.value));
     $('question-heading').textContent = q ? '問題を編集' : '問題を作る';
@@ -210,18 +300,23 @@
       return form;
     }));
   }
-  $('login-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const result = await api('login', {id: $('login-id').value, password: $('login-password').value}); $('login-password').value = ''; accountKey = ''; if ((view === 'host' && result.role === 'player') || (view === 'player' && result.role !== 'player')) throw new Error('この画面に対応するIDでログインしてください。'); }, 'ログインしました。'); });
-  document.querySelectorAll('.logout').forEach(b => b.addEventListener('click', () => work(async () => { await api('logout', {}); accountKey = ''; $('account-list').replaceChildren(); $('delegate-result').textContent = ''; $('question-form').reset(); }, 'ログアウトしました。')));
+  $('login-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const result = await api('login', {id: $('login-id').value, password: $('login-password').value}); $('login-password').value = ''; accountKey = ''; delete $('intake-form').dataset.loaded; if ((view === 'host' && result.role === 'player') || (view === 'player' && result.role !== 'player')) throw new Error('この画面に対応するIDでログインしてください。'); }, 'ログインしました。'); });
+  document.querySelectorAll('.logout').forEach(b => b.addEventListener('click', () => work(async () => { await api('logout', {}); accountKey = ''; delete $('intake-form').dataset.loaded; $('account-list').replaceChildren(); $('delegate-result').textContent = ''; $('question-form').reset(); $('question-submission-id').value = ''; }, 'ログアウトしました。')));
   $('answer-form').addEventListener('submit', event => { event.preventDefault(); const roundId = state?.game.roundId; work(async () => { if (remaining() <= 0) throw new Error('回答受付は終了しました。'); await api('answer', {roundId, answer: $('answer-input').value}); }, '回答を送信しました。受付中は再送信できます。'); });
   $('start').addEventListener('click', () => action('start', {duration: Number($('timer-seconds').value)}));
   $('reveal').addEventListener('click', () => action('reveal'));
   $('show-question').addEventListener('click', () => action('show_question'));
   $('lobby').addEventListener('click', () => { if (state.game.phase !== 'answering' || confirm('回答受付を終了して待機画面に戻しますか？')) action('lobby'); });
   $('new-question').addEventListener('click', () => editQuestion());
-  $('question-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const result = await api('admin/question', {id: $('question-id').value || undefined, label: $('question-label').value, prompt: $('question-prompt').value, correctAnswer: $('question-correct').value, duration: Number($('question-duration').value), imageIds: [...$('question-images').querySelectorAll('input:checked')].map(input => input.value)}); $('question-id').value = result.id; $('question-heading').textContent = '問題を編集'; }, '問題を保存しました。'); });
+  $('question-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const submissionId = $('question-submission-id').value; const data = {id: $('question-id').value || undefined, label: $('question-label').value, prompt: $('question-prompt').value, correctAnswer: $('question-correct').value, duration: Number($('question-duration').value), imageIds: [...$('question-images').querySelectorAll('input:checked')].map(input => input.value)}; const result = await api(submissionId ? 'admin/review' : 'admin/question', submissionId ? {...data,submissionId,action:'approve_question'} : data); $('question-submission-id').value=''; $('question-id').value = result.id; $('question-heading').textContent = '問題を編集'; }, '問題一覧に保存しました。一覧の「出題」で公開できます。'); });
   $('screen-upload').addEventListener('change', () => { const files = [...$('screen-upload').files]; work(async () => { let completed = 0; try { for (const file of files) { await upload(file, 'screen'); completed++; } } catch (error) { error.message = `${completed}枚を保存しました。` + error.message; throw error; } finally { $('screen-upload').value = ''; } }, files.length + '枚の画像を追加しました。'); });
   $('delegate-form').addEventListener('submit', event => { event.preventDefault(); work(async () => { const result = await api('admin/delegate', {id: $('delegate-id').value, password: $('delegate-password').value, hours: Number($('delegate-hours').value)}); $('delegate-result').textContent = `ID：${result.id}\nパスワード：${result.password}\n期限：${new Date(result.expiresMs).toLocaleString('ja-JP')}\n委任先への共有用です。控えてから画面を閉じてください。`; $('delegate-password').value = ''; }, '委任IDを発行しました。'); });
-  $('fullscreen').addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else if ($('board').requestFullscreen) await $('board').requestFullscreen(); else message('この端末では、横向き表示でゲーム画面を大きくできます。'); } catch { message('横向き表示でもゲーム画面を大きくできます。'); } });
+  $('fullscreen').addEventListener('click', () => { const popup = window.open('./?view=screen','yplusKanjiScreen','popup=yes,width=1280,height=720,resizable=yes,scrollbars=no'); if (!popup) message('別ウィンドウがブロックされました。このサイトのポップアップを許可して再度開いてください。',true); else popup.focus(); });
+  $('post-hint-mode').addEventListener('change',()=>{$('post-hint-target-label').hidden=$('post-hint-mode').value!=='private';});
+  $('intake-form').addEventListener('submit',event=>{event.preventDefault();saveReception();});
+  $('intake-reset').addEventListener('click',()=>{if($('intake-form').reportValidity() && confirm('以前の投稿を確認一覧に残したまま、受付件数を0に戻して問題受付を開始しますか？')) saveReception(true);});
+  $('post-question-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'question',batchId:state.intake.questionBatch,sender:$('post-question-sender').value,label:$('post-question-label').value,prompt:$('post-question-prompt').value,correctAnswer:$('post-question-correct').value,duration:Number($('post-question-duration').value)});$('post-question-form').reset();},'問題を投稿しました。ゲームマスターの確認をお待ちください。');});
+  $('post-hint-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'hint',roundId:$('post-hint-form').dataset.round,sender:$('post-hint-sender').value,mode:$('post-hint-mode').value,slot:Number($('post-hint-target').value),prompt:$('post-hint-prompt').value});$('post-hint-prompt').value='';},'ヒントを投稿しました。承認されると表示されます。');});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   refresh(); setInterval(refresh, 1000); setInterval(tick, 200);
 })();

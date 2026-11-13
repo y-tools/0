@@ -120,10 +120,22 @@ def initialize():
           answer TEXT NOT NULL, updated_ms INTEGER NOT NULL, PRIMARY KEY(round_id,slot)
         );
         CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, at_ms INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS intake (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS submissions (
+          id TEXT PRIMARY KEY, kind TEXT NOT NULL, mode TEXT, slot INTEGER, target_id TEXT,
+          round_id TEXT, batch_id TEXT, sender TEXT NOT NULL, label TEXT NOT NULL,
+          prompt TEXT NOT NULL, correct_answer TEXT NOT NULL, duration INTEGER NOT NULL,
+          status TEXT NOT NULL, visible INTEGER NOT NULL DEFAULT 0, question_id TEXT, created_ms INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS submissions_round ON submissions(round_id,kind,visible);
+        CREATE TABLE IF NOT EXISTS post_limits (ip_hash TEXT NOT NULL, at_ms INTEGER NOT NULL);
         ''')
         initial = {'revision': 0, 'phase': 'lobby', 'screen': 'lobby', 'questionId': None,
                    'roundId': None, 'deadlineMs': None, 'duration': 30, 'mediaId': None}
         connection.execute('INSERT OR IGNORE INTO game VALUES(1,?)', (json.dumps(initial),))
+        connection.execute('INSERT OR IGNORE INTO intake VALUES(1,?)', (json.dumps({
+            'revision': 0, 'questionOpen': False, 'questionLimit': 10,
+            'questionBatch': secrets.token_hex(16), 'hintMode': 'off'}),))
 
 
 def game_state(connection):
@@ -162,6 +174,137 @@ def question_dict(row):
             'imageIds': json.loads(row['image_ids'])}
 
 
+def intake_state(connection):
+    config = json.loads(connection.execute('SELECT data FROM intake WHERE id=1').fetchone()['data'])
+    count = connection.execute("SELECT COUNT(*) FROM submissions WHERE kind='question' AND batch_id=?", (config['questionBatch'],)).fetchone()[0]
+    return {**config, 'questionCount': count, 'questionRemaining': max(0, config['questionLimit'] - count)}
+
+
+def save_intake(connection, data):
+    config = intake_state(connection)
+    if data.get('expectedRevision') != config['revision']:
+        raise Error(409, '受付設定が変更されました。再読み込みしてから設定してください。')
+    opened, mode = data.get('questionOpen'), data.get('hintMode')
+    if type(opened) is not bool or mode not in ('off', 'private', 'global', 'both'):
+        raise Error(400, '受付設定を確認してください。')
+    limit = integer(data.get('questionLimit'), 1, 200, '問題受付上限')
+    config = {key: config[key] for key in ('revision', 'questionOpen', 'questionLimit', 'questionBatch', 'hintMode')}
+    config.update(revision=config['revision'] + 1, questionOpen=opened, questionLimit=limit, hintMode=mode)
+    if data.get('resetQuestions') is True:
+        config['questionBatch'] = secrets.token_hex(16)
+    connection.execute('UPDATE intake SET data=? WHERE id=1', (json.dumps(config),))
+    return {'ok': True}
+
+
+def save_question(connection, data):
+    qid = data.get('id') or secrets.token_hex(12)
+    old = connection.execute('SELECT id FROM questions WHERE id=?', (qid,)).fetchone()
+    if data.get('id') and not old:
+        raise Error(404, '問題が見つかりません。')
+    if connection.execute('SELECT COUNT(*) FROM questions').fetchone()[0] >= 200 and not old:
+        raise Error(400, '問題は200問まで登録できます。')
+    game = game_state(connection)
+    if game['questionId'] == qid and game['phase'] in ('question', 'answering', 'timeup'):
+        raise Error(409, '出題中の問題は編集できません。待機画面へ戻してから編集してください。')
+    label = text(data.get('label'), 100, '問題タイトル', True)
+    prompt = text(data.get('prompt', ''), 2000, '問題文')
+    correct = text(data.get('correctAnswer'), 1000, '正解', True)
+    duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
+    ids = data.get('imageIds', [])
+    if not isinstance(ids, list) or len(ids) > 20 or any(not isinstance(mid, str) or not media_url(connection, mid, 'screen') for mid in ids):
+        raise Error(400, '問題画像を確認してください。')
+    if not prompt and not ids:
+        raise Error(400, '問題文または問題画像を設定してください。')
+    connection.execute('INSERT INTO questions VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,prompt=excluded.prompt,correct_answer=excluded.correct_answer,duration=excluded.duration,image_ids=excluded.image_ids',
+                       (qid, label, prompt, correct, duration, json.dumps(ids), now_ms()))
+    return {'ok': True, 'id': qid}
+
+
+def submit_post(connection, data, ip):
+    config = intake_state(connection)
+    kind = data.get('kind')
+    sender = text(data.get('sender', ''), 40, '投稿者名') or 'リスナー'
+    prompt = text(data.get('prompt'), 2000 if kind == 'question' else 300, '投稿内容', True)
+    mid, slot, target, round_id, label, correct, duration = None, None, None, None, '', '', 30
+    if kind == 'question':
+        if not config['questionOpen'] or config['questionRemaining'] <= 0:
+            raise Error(409, '問題投稿は受付停止中、または上限に達しています。')
+        if data.get('batchId') != config['questionBatch']:
+            raise Error(409, '問題受付が切り替わりました。画面を確認して再投稿してください。')
+        label = text(data.get('label'), 100, '問題タイトル', True)
+        correct = text(data.get('correctAnswer'), 1000, '正解', True)
+        duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
+    elif kind == 'hint':
+        mid = data.get('mode')
+        if mid not in ('private', 'global') or config['hintMode'] not in (mid, 'both'):
+            raise Error(409, 'この種類のヒントは現在受付していません。')
+        game = game_state(connection)
+        round_id = game['roundId']
+        if game['phase'] not in ('question', 'answering', 'timeup') or data.get('roundId') != round_id:
+            raise Error(409, '現在の問題へのヒント受付は終了しています。')
+        if mid == 'private':
+            slot = integer(data.get('slot'), 1, 4, 'ヒントの宛先')
+            player = connection.execute("SELECT id FROM users WHERE role='player' AND slot=? AND enabled=1", (slot,)).fetchone()
+            if not player:
+                raise Error(409, 'その回答者は現在参加していません。')
+            target = player['id']
+        if connection.execute("SELECT COUNT(*) FROM submissions WHERE kind='hint' AND round_id=?", (round_id,)).fetchone()[0] >= 200:
+            raise Error(409, 'この問題のヒント投稿が上限に達しました。')
+    else:
+        raise Error(400, '投稿の種類を確認してください。')
+    if connection.execute("SELECT COUNT(*) FROM submissions WHERE status='pending'").fetchone()[0] >= 500:
+        raise Error(409, '未確認の投稿が多いため、受付を一時停止しています。')
+    stamp = now_ms()
+    hashed_ip = hashlib.sha256(ip.encode()).hexdigest()
+    connection.execute('DELETE FROM post_limits WHERE at_ms<?', (stamp - 60000,))
+    if connection.execute('SELECT COUNT(*) FROM post_limits WHERE ip_hash=?', (hashed_ip,)).fetchone()[0] >= 30:
+        raise Error(429, '投稿が続いています。1分ほど待ってから再投稿してください。')
+    connection.execute('INSERT INTO post_limits VALUES(?,?)', (hashed_ip, stamp))
+    sid = secrets.token_hex(16)
+    connection.execute('INSERT INTO submissions VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (sid, kind, mid, slot, target, round_id, config['questionBatch'], sender, label, prompt, correct, duration, 'pending', 0, None, stamp))
+    # Bound reviewed history without deleting the current question-reception count.
+    connection.execute("DELETE FROM submissions WHERE status!='pending' AND visible=0 AND (kind!='question' OR batch_id!=?) AND id NOT IN (SELECT id FROM submissions ORDER BY created_ms DESC LIMIT 1000)", (config['questionBatch'],))
+    return {'ok': True, 'id': sid}
+
+
+def review_post(connection, data):
+    sid = text(data.get('submissionId'), 40, '投稿ID', True)
+    post = connection.execute('SELECT * FROM submissions WHERE id=?', (sid,)).fetchone()
+    if post is None:
+        raise Error(404, '投稿が見つかりません。')
+    action = data.get('action')
+    if action == 'reject':
+        if post['status'] != 'pending':
+            raise Error(409, 'この投稿はすでに確認済みです。')
+        connection.execute("UPDATE submissions SET status='rejected',visible=0 WHERE id=?", (sid,))
+    elif action == 'approve_question':
+        if post['kind'] != 'question' or post['status'] != 'pending':
+            raise Error(409, 'この問題はすでに確認済みです。')
+        approved = save_question(connection, {**data, 'id': None})
+        connection.execute("UPDATE submissions SET status='approved',question_id=? WHERE id=?", (approved['id'], sid))
+        return approved
+    elif action in ('publish_hint', 'hide_hint'):
+        if post['kind'] != 'hint' or post['status'] not in ('pending', 'approved'):
+            raise Error(409, 'このヒントは表示できません。')
+        if action == 'hide_hint':
+            connection.execute('UPDATE submissions SET visible=0 WHERE id=?', (sid,))
+        else:
+            game = game_state(connection)
+            if post['round_id'] != game['roundId'] or game['phase'] == 'lobby':
+                raise Error(409, '前の問題のヒントは表示できません。')
+            if post['mode'] == 'private':
+                player = connection.execute("SELECT id FROM users WHERE role='player' AND slot=? AND enabled=1", (post['slot'],)).fetchone()
+                if not player or player['id'] != post['target_id']:
+                    raise Error(409, '宛先の回答者が変更されています。')
+            prompt = text(data.get('prompt', post['prompt']), 300, '表示するヒント', True)
+            connection.execute("UPDATE submissions SET visible=0 WHERE kind='hint' AND round_id=? AND mode=? AND slot IS ?", (game['roundId'], post['mode'], post['slot']))
+            connection.execute("UPDATE submissions SET status='approved',visible=1,prompt=? WHERE id=?", (prompt, sid))
+    else:
+        raise Error(400, '確認操作を選んでください。')
+    return {'ok': True}
+
+
 def public_state(connection, me=None, host=False):
     game = game_state(connection)
     active = None
@@ -190,6 +333,16 @@ def public_state(connection, me=None, host=False):
     public_game['image'] = media_url(connection, game['mediaId'], 'screen') if game['screen'] == 'image' else None
     result = {'serverTimeMs': now_ms(), 'game': public_game, 'question': active, 'players': players,
               'me': {'id': me['id'], 'role': me['role'], 'slot': me['slot'], 'expiresMs': me['expires_ms']} if me else None}
+    config = intake_state(connection)
+    result['intake'] = config
+    result['globalHint'] = None
+    result['privateHint'] = None
+    if game['phase'] != 'lobby':
+        hint = connection.execute("SELECT prompt FROM submissions WHERE kind='hint' AND mode='global' AND visible=1 AND round_id=? ORDER BY created_ms DESC LIMIT 1", (game['roundId'],)).fetchone()
+        result['globalHint'] = hint['prompt'] if hint else None
+        if me and me['role'] == 'player':
+            hint = connection.execute("SELECT prompt FROM submissions WHERE kind='hint' AND mode='private' AND visible=1 AND round_id=? AND slot=? AND target_id=? ORDER BY created_ms DESC LIMIT 1", (game['roundId'], me['slot'], me['id'])).fetchone()
+            result['privateHint'] = hint['prompt'] if hint else None
     if host:
         result['game']['questionId'] = game['questionId']
         result['questions'] = [question_dict(r) for r in connection.execute('SELECT * FROM questions ORDER BY created_ms,id')]
@@ -198,6 +351,7 @@ def public_state(connection, me=None, host=False):
         result['accounts'] = [{'slot': r['slot'], 'id': r['id'], 'enabled': bool(r['enabled']),
                                'avatarId': r['avatar_id'], 'avatar': media_url(connection, r['avatar_id'], 'avatar')}
                               for r in connection.execute("SELECT * FROM users WHERE role='player' ORDER BY slot")]
+        result['submissions'] = [dict(r) for r in connection.execute("SELECT * FROM submissions WHERE status='pending' OR (kind='hint' AND status='approved' AND round_id=?) ORDER BY created_ms DESC,id LIMIT 700", (game['roundId'],))]
         if me and me['role'] == 'owner':
             result['delegates'] = [{'id': r['id'], 'expiresMs': r['expires_ms']}
                                    for r in connection.execute("SELECT * FROM users WHERE role='gm' ORDER BY created_ms DESC")]
@@ -246,6 +400,7 @@ def host_action(connection, data):
         raise Error(409, '進行状況が更新されました。画面を確認してもう一度操作してください。')
     if action == 'present':
         row = question_row(connection, data.get('questionId'))
+        connection.execute("UPDATE submissions SET visible=0 WHERE kind='hint'")
         ids = json.loads(row['image_ids'])
         game.update(phase='question', screen='image' if ids else 'question', questionId=row['id'],
                     roundId=secrets.token_urlsafe(16), deadlineMs=None, duration=row['duration'], mediaId=ids[0] if ids else None)
@@ -268,6 +423,7 @@ def host_action(connection, data):
             raise Error(409, '先に問題を出題してください。')
         game['screen'] = 'question'
     elif action == 'lobby':
+        connection.execute("UPDATE submissions SET visible=0 WHERE kind='hint'")
         game.update(phase='lobby', screen='lobby', deadlineMs=None, mediaId=None)
     else:
         raise Error(400, '操作を確認してください。')
@@ -443,6 +599,9 @@ class Handler(BaseHTTPRequestHandler):
                     connection.execute('INSERT INTO answers VALUES(?,?,?,?,?) ON CONFLICT(round_id,slot) DO UPDATE SET answer=excluded.answer,updated_ms=excluded.updated_ms,user_id=excluded.user_id',
                                        (game['roundId'], me['slot'], me['id'], answer, now_ms()))
                     status, result = 200, {'ok': True, 'answer': answer}
+                elif path == '/quiz/api/submit':
+                    result = submit_post(connection, data, self.headers.get('X-Real-IP', self.client_address[0])[:80])
+                    status = 200
                 elif path.startswith('/quiz/api/admin/'):
                     me = self.me(connection, ('owner', 'gm'))
                     if path.endswith('/player'):
@@ -450,27 +609,11 @@ class Handler(BaseHTTPRequestHandler):
                     elif path.endswith('/upload'):
                         result = self.upload(connection, data)
                     elif path.endswith('/question'):
-                        qid = data.get('id') or secrets.token_hex(12)
-                        old = connection.execute('SELECT id FROM questions WHERE id=?', (qid,)).fetchone()
-                        if data.get('id') and not old:
-                            raise Error(404, '問題が見つかりません。')
-                        if connection.execute('SELECT COUNT(*) FROM questions').fetchone()[0] >= 200 and not old:
-                            raise Error(400, '問題は200問まで登録できます。')
-                        game = game_state(connection)
-                        if game['questionId'] == qid and game['phase'] in ('question', 'answering', 'timeup'):
-                            raise Error(409, '出題中の問題は編集できません。待機画面へ戻してから編集してください。')
-                        label = text(data.get('label'), 100, '問題タイトル', True)
-                        prompt = text(data.get('prompt', ''), 2000, '問題文')
-                        correct = text(data.get('correctAnswer'), 1000, '正解', True)
-                        duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
-                        ids = data.get('imageIds', [])
-                        if not isinstance(ids, list) or len(ids) > 20 or any(not isinstance(mid, str) or not media_url(connection, mid, 'screen') for mid in ids):
-                            raise Error(400, '問題画像を確認してください。')
-                        if not prompt and not ids:
-                            raise Error(400, '問題文または問題画像を設定してください。')
-                        connection.execute('INSERT INTO questions VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,prompt=excluded.prompt,correct_answer=excluded.correct_answer,duration=excluded.duration,image_ids=excluded.image_ids',
-                                           (qid, label, prompt, correct, duration, json.dumps(ids), now_ms()))
-                        result = {'ok': True, 'id': qid}
+                        result = save_question(connection, data)
+                    elif path.endswith('/intake'):
+                        result = save_intake(connection, data)
+                    elif path.endswith('/review'):
+                        result = review_post(connection, data)
                     elif path.endswith('/action'):
                         result = host_action(connection, data)
                     elif path.endswith('/delegate'):

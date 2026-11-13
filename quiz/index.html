@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101822">
   <title>みんなで漢字 | Y++STADIO</title>
-  <link rel="stylesheet" href="./quiz.css?v=20261113-2">
-  <script src="./quiz.js?v=20261113-2" defer></script>
+  <link rel="stylesheet" href="./quiz.css?v=20261113-3">
+  <script src="./quiz.js?v=20261113-3" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -19,14 +19,23 @@
     <span id="connection" class="connection" role="status">接続中</span>
   </header>
   <main>
-    <div class="page-heading"><div><p class="eyebrow">PLAY TOGETHER / UP TO 4 PLAYERS</p><h1>みんなで漢字<span class="title-dot">.</span></h1></div><button id="fullscreen" class="secondary">画面を大きく</button></div>
+    <div class="page-heading"><div><p class="eyebrow">PLAY TOGETHER / UP TO 4 PLAYERS</p><h1>みんなで漢字<span class="title-dot">.</span></h1></div><button id="fullscreen" class="secondary">別ウィンドウで表示</button></div>
     <section id="board" class="board" aria-label="クイズゲーム画面">
       <div class="board-top"><span id="board-label">みんなで漢字</span><span id="board-phase">待機中</span></div>
       <div id="stage" class="stage"></div>
       <div id="countdown" class="countdown" aria-label="残り時間"></div>
+      <div id="global-hint" class="global-hint" hidden><strong>HINT</strong><span id="global-hint-text"></span></div>
       <div id="players" class="players"></div>
     </section>
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
+    <section id="listener-posts" class="listener-posts" hidden>
+      <section class="panel"><div class="section-head"><h2>問題を投稿</h2><span id="question-reception" class="pill"></span></div><p class="muted">ゲームマスターが確認してから出題します。投稿内容と正解は他のリスナーには表示されません。</p>
+        <form id="post-question-form"><fieldset id="post-question-fields"><label>お名前（任意）<input id="post-question-sender" maxlength="40" autocomplete="nickname"></label><label>タイトル<input id="post-question-label" maxlength="100" required></label><label>問題文<textarea id="post-question-prompt" rows="3" maxlength="2000" required></textarea></label><label>正解<textarea id="post-question-correct" rows="2" maxlength="1000" required></textarea></label><label>制限時間（秒）<input id="post-question-duration" type="number" min="1" max="3600" value="30" required></label><button type="submit">問題を送る</button></fieldset></form>
+      </section>
+      <section class="panel"><div class="section-head"><h2>ヒントを投稿</h2><span id="hint-reception" class="pill"></span></div><p class="muted">いま出題されている問題へのヒントです。ゲームマスターが確認してから表示します。</p>
+        <form id="post-hint-form"><fieldset id="post-hint-fields"><label>お名前（任意）<input id="post-hint-sender" maxlength="40" autocomplete="nickname"></label><label>ヒントの種類<select id="post-hint-mode"></select></label><label id="post-hint-target-label">届ける回答者<select id="post-hint-target"></select></label><label>ヒント<textarea id="post-hint-prompt" rows="4" maxlength="300" required></textarea></label><button type="submit">ヒントを送る</button></fieldset></form>
+      </section>
+    </section>
     <section id="login-panel" class="panel narrow" hidden>
       <p class="eyebrow">WELCOME BACK</p><h2 id="login-heading">ログイン</h2>
       <form id="login-form"><label>ID<input id="login-id" name="username" autocomplete="username" maxlength="40" required></label><label>パスワード<input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="128" required></label><button type="submit">ログイン</button></form>
@@ -35,6 +44,7 @@
     <section id="player-panel" class="panel narrow" hidden>
       <div class="section-head"><h2 id="player-name">回答する</h2><button class="secondary logout">ログアウト</button></div>
       <p id="answer-guide" class="muted"></p>
+      <aside id="private-hint" class="private-hint" hidden><strong>あなたへのヒント</strong><p id="private-hint-text"></p></aside>
       <form id="answer-form"><label>あなたの回答<textarea id="answer-input" rows="3" maxlength="500" required placeholder="回答を入力してください"></textarea></label><button id="answer-submit" type="submit">回答を送信</button></form>
       <p id="last-answer" class="saved-answer"></p><p class="muted">受付中は何度でも送信できます。最後に送った回答が採用されます。</p>
     </section>
@@ -47,9 +57,15 @@
         <div id="host-answers" class="host-answers"></div>
       </section>
       <div class="host-grid">
+        <section class="panel wide"><div class="section-head"><h2>リスナー投稿の受付</h2><span id="intake-count" class="pill"></span></div>
+          <form id="intake-form" class="intake-form"><label class="checkbox-label"><input id="intake-question-open" type="checkbox">問題投稿を受け付ける</label><label>問題受付上限（合計）<input id="intake-question-limit" type="number" min="1" max="200" value="10" required></label><label>ヒント受付<select id="intake-hint-mode"><option value="off">受付停止</option><option value="private">個別ヒントのみ</option><option value="global">全体ヒントのみ</option><option value="both">個別・全体の両方</option></select></label><button type="submit">受付設定を保存</button></form>
+          <p class="muted intake-description">問題は受付ごとの合計件数で制限します。上限に達すると自動で受付停止します。確認済み・不採用の投稿も件数に含みます。</p><button id="intake-reset" class="secondary">件数をリセットして問題受付を開始</button>
+        </section>
+        <section class="panel"><h2>投稿された問題</h2><div id="question-post-list" class="post-list"></div></section>
+        <section class="panel"><h2>投稿されたヒント</h2><p class="muted">内容を確認・編集してから表示してください。個別ヒントは宛先の回答者だけに表示します。</p><div id="hint-post-list" class="post-list"></div></section>
         <section class="panel"><div class="section-head"><h2>問題一覧</h2><button id="new-question" class="secondary">＋ 問題を作る</button></div><div id="question-list" class="question-list"></div></section>
         <section class="panel"><h2 id="question-heading">問題を作る</h2>
-          <form id="question-form"><input id="question-id" type="hidden"><label>一覧用タイトル<input id="question-label" maxlength="100" required placeholder="第1問"></label><label>問題文<textarea id="question-prompt" rows="3" maxlength="2000" placeholder="問題文、または下の問題画像を設定"></textarea></label><label>正解<textarea id="question-correct" rows="2" maxlength="1000" required></textarea></label><label>制限時間（秒）<input id="question-duration" type="number" min="1" max="3600" value="30" required></label><fieldset><legend>問題画像（複数選択可）</legend><div id="question-images" class="image-checks"></div></fieldset><button type="submit">問題を保存</button></form>
+          <form id="question-form"><input id="question-id" type="hidden"><input id="question-submission-id" type="hidden"><label>一覧用タイトル<input id="question-label" maxlength="100" required placeholder="第1問"></label><label>問題文<textarea id="question-prompt" rows="3" maxlength="2000" placeholder="問題文、または下の問題画像を設定"></textarea></label><label>正解<textarea id="question-correct" rows="2" maxlength="1000" required></textarea></label><label>制限時間（秒）<input id="question-duration" type="number" min="1" max="3600" value="30" required></label><fieldset><legend>問題画像（複数選択可）</legend><div id="question-images" class="image-checks"></div></fieldset><button type="submit">問題を保存</button></form>
         </section>
         <section class="panel wide"><div class="section-head"><div><h2>画面用の画像</h2><p class="muted">画像を押すと全員のゲーム画面に表示します。タイマーはそのまま進みます。</p></div><label class="upload-button">＋ 画像を追加<input id="screen-upload" type="file" accept="image/png,image/jpeg,image/webp" multiple></label></div><div id="media-list" class="media-list"></div><p class="muted">PNG / JPEG / WebP・1枚6MB未満。問題編集欄で画像を紐づけることもできます。</p></section>
         <section class="panel wide"><div class="section-head"><h2>回答者の設定 <span class="muted">最大4人</span></h2></div><p class="muted">新規登録でパスワードを空欄にすると自動生成します。登録済みの場合、空欄なら現在のパスワードを保持します。ID・パスワードの変更後は再ログインが必要です。</p><div id="account-list" class="account-list"></div></section>
