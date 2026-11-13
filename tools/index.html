@@ -1554,7 +1554,7 @@
     padding:16px; border-top:1px solid var(--line);
   }
 </style>
-<link rel="stylesheet" href="portal.css">
+<link rel="stylesheet" href="portal.css?v=20261113-upload1">
 </head>
 <body>
 
@@ -1797,6 +1797,8 @@
     <div class="dice-btn-row">
       <button type="button" id="anagramRollBtn" class="tool-btn primary">ガチャを回す</button>
       <button type="button" id="anagramSaveAllBtn" class="tool-btn">全設定保存</button>
+      <button type="button" id="anagramUploadBtn" class="tool-btn">データアップロード</button>
+      <input type="file" id="anagramImportFile" accept=".json,application/json" hidden>
       <button type="button" id="anagramResetBtn" class="tool-btn">リセット</button>
       <button type="button" id="anagramDataBtn" class="tool-btn">データ</button>
     </div>
@@ -1839,6 +1841,17 @@
     </div>
   </div>
 </div>
+<dialog class="anagram-data-dialog anagram-import-dialog" id="anagramImportDialog" aria-labelledby="anagramImportTitle">
+  <div class="anagram-data-shell">
+    <div class="anagram-data-header"><div><span class="anagram-data-eyebrow">ANAGRAM / DATA IMPORT</span><h2 id="anagramImportTitle">データアップロード</h2><p class="anagram-data-intro">「全設定保存」で出力したJSONバックアップ（2MB以下）を復元します。ファイルはサーバーに送信されません。</p></div><button type="button" id="anagramImportClose" class="tool-btn anagram-data-close">閉じる</button></div>
+    <p id="anagramImportFilename" class="anagram-import-filename"></p>
+    <dl id="anagramImportSummary" class="anagram-import-summary"></dl>
+    <p class="anagram-import-note">取り込むと、現在の文字・名前・履歴・大当たり・メンテナンス設定を置き換えます。先に現在のデータをダウンロードして残すこともできます。</p>
+    <button type="button" id="anagramImportBackup" class="tool-btn">現在のデータをダウンロード</button>
+    <p id="anagramImportStatus" class="anagram-import-status" role="status" aria-live="polite"></p>
+    <div class="anagram-import-actions"><button type="button" id="anagramImportCancel" class="tool-btn">キャンセル</button><button type="button" id="anagramImportApply" class="tool-btn primary" disabled>このデータを取り込む</button></div>
+  </div>
+</dialog>
 <dialog class="anagram-data-dialog" id="anagramDataDialog" aria-labelledby="anagramDataTitle">
   <div class="anagram-data-shell">
     <div class="anagram-data-header">
@@ -2736,6 +2749,7 @@
     anagramHistoryList.querySelectorAll(".anagram-history-actions button").forEach(button => { button.disabled = false; });
     anagramAddBtn.disabled = false;
     anagramSaveAllBtn.disabled = false;
+    document.getElementById("anagramUploadBtn").disabled = false;
     anagramDataBtn.disabled = false;
     anagramBatchCountInput.disabled = false;
     anagramBatchRollBtn.disabled = false;
@@ -3566,6 +3580,7 @@
     document.getElementById("anagramHistoryClearBtn").disabled = true;
     anagramAddBtn.disabled = true;
     anagramSaveAllBtn.disabled = true;
+    document.getElementById("anagramUploadBtn").disabled = true;
     anagramDataBtn.disabled = true;
     anagramBatchCountInput.disabled = true;
     anagramBatchRollBtn.disabled = true;
@@ -4870,6 +4885,8 @@
   renderOrderQueue();
 </script>
 
+<script src="anagram-backup.js?v=20261113-1" defer></script>
+<script src="anagram-import.js?v=20261113-1" defer></script>
 <script src="portal-bridge.js" defer></script>
 </body>
 </html>

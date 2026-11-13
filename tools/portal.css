@@ -58,3 +58,16 @@ body.portal-order .comment-tools{display:flex;flex-direction:column;gap:10px;pad
 body.portal-order .comment-btn-row{display:flex;flex-wrap:wrap;gap:8px}
 body.portal-order .comment-btn-row button{flex:1 1 130px;min-height:42px}
 body.portal-order .comment-tools input{background:#111b2a;border:1px solid #405068;border-radius:9px;padding:9px;color:#f5f1e9;width:100%}
+.anagram-import-dialog{width:min(720px,calc(100vw - 28px))}
+.anagram-import-filename{color:#dec09d;font-size:13px;overflow-wrap:anywhere}
+.anagram-import-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:18px 0}
+.anagram-import-summary>div{padding:13px;border:1px solid #ffffff20;border-radius:12px;background:#ffffff06;min-width:0}
+.anagram-import-summary dt{color:#a4b9cd;font-size:11px;margin-bottom:7px}
+.anagram-import-summary dd{margin:0;font-size:16px;overflow-wrap:anywhere;color:#f2f5f8}
+.anagram-import-note{color:#e9c49d;font-size:12px;line-height:1.8}
+.anagram-import-status{color:#a7e6ca;font-size:13px;line-height:1.7;min-height:24px;white-space:pre-wrap}
+.anagram-import-status[data-error="true"]{color:#ffaaa7}
+.anagram-import-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px}
+.anagram-import-dialog .tool-btn{font-size:13px;padding:10px 15px}
+.anagram-import-dialog .tool-btn:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:480px){.anagram-import-summary{grid-template-columns:1fr}.anagram-import-actions .tool-btn{flex:1}}
