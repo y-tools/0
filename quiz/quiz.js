@@ -10,6 +10,7 @@
   const phases = {lobby: '待機中', question: 'スタート待ち', answering: '回答受付中', timeup: '回答受付終了', answer: '正解発表'};
   let state = null, offset = 0, polling = false, accountKey = '', questionKey = '', mediaKey = '', delegateKey = '', round = null, boardKey = '', busy = 0, draftImages = [];
   let postKey = '', hintModeKey = '', targetKey = '';
+  let bankPreview = [], bankKey = '';
   document.querySelector(`[data-view="${view}"]`)?.setAttribute('aria-current', 'page');
   if (view === 'screen') { document.body.classList.add('screen-only'); window.opener = null; }
   function node(tag, className, content) {
@@ -84,7 +85,8 @@
     } else if (screen === 'answer' && q?.correctAnswer !== undefined) {
       stage.classList.add('answer-stage'); stage.append(node('h2', '', '正解'), node('p', 'prompt', q.correctAnswer));
     } else if (screen === 'question' && q) {
-      stage.append(node('p', 'stage-kicker', q.label), node('p', 'prompt', q.prompt || '問題画像を確認してください。'));
+      if (q.bankWord) stage.append(node('p','stage-kicker','KANJI READING'),node('h2','kanji-word',q.bankWord),node('p','sub','読みをひらがなで答えてください'));
+      else stage.append(node('p', 'stage-kicker', q.label), node('p', 'prompt', q.prompt || '問題画像を確認してください。'));
     } else {
       stage.append(node('p', 'stage-kicker', 'READY TO PLAY?'), node('h2', '', 'みんなで漢字'), node('p', 'sub', 'ゲームマスターの出題をお待ちください。'));
     }
@@ -139,6 +141,7 @@
   }
   function renderHost() {
     const {game, me} = state;
+    renderBankSummary();
     renderPostManagement();
     $('host-name').textContent = '進行コントロール / ' + me.id;
     $('host-phase').textContent = phases[game.phase];
@@ -182,6 +185,24 @@
       delegateKey = dkey;
       $('delegate-list').replaceChildren(...(state.delegates || []).map(d => { const row = node('div', 'delegate-row'); row.append(node('span', '', d.id + ' / ' + new Date(d.expiresMs).toLocaleString('ja-JP') + ' まで'), button('委任を解除', () => work(async () => { if (confirm(d.id + ' の委任を解除しますか？')) await api('admin/delegate', {action: 'revoke', id: d.id}); }, '委任を更新しました。'), true)); return row; }));
     }
+  }
+  function renderBankSummary() {
+    if (!state.bank) return;
+    const key = JSON.stringify(state.bank);
+    if (key === bankKey) return;
+    bankKey = key;
+    $('bank-version').textContent = state.bank.meta ? `辞書 ${state.bank.meta.dictionaryDate || state.bank.meta.version}` : '準備中';
+    $('bank-counts').replaceChildren(...state.bank.levels.map(level=>{
+      const card=node('div','bank-count-card');card.append(node('strong','',level.label),node('span','',`${level.total.toLocaleString()}問保存`),node('small','muted',`未追加 ${level.remaining.toLocaleString()}問 / 除外 ${level.total-level.enabled}問`));return card;
+    }));
+  }
+  function renderBankPreview() {
+    $('bank-preview').replaceChildren(...bankPreview.map(item=>{
+      const card=node('article','bank-preview-card');card.append(node('h3','',item.word),node('p','bank-reading',item.reading),node('small','muted','辞書照合済み / JMdict #'+item.entry_id));
+      card.append(button('この問題を除外',()=>work(async()=>{await api('admin/bank',{action:'disable',ids:[item.id]});bankPreview=bankPreview.filter(p=>p.id!==item.id);renderBankPreview();},'この問題を抽出対象から除外しました。'),true));return card;
+    }));
+    $('bank-add').hidden = !bankPreview.length;
+    $('bank-add').textContent = `確認した${bankPreview.length}問を一覧へ追加`;
   }
   function renderReception() {
     const intake = state.intake;
@@ -317,6 +338,8 @@
   $('intake-reset').addEventListener('click',()=>{if($('intake-form').reportValidity() && confirm('以前の投稿を確認一覧に残したまま、受付件数を0に戻して問題受付を開始しますか？')) saveReception(true);});
   $('post-question-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'question',batchId:state.intake.questionBatch,sender:$('post-question-sender').value,label:$('post-question-label').value,prompt:$('post-question-prompt').value,correctAnswer:$('post-question-correct').value,duration:Number($('post-question-duration').value)});$('post-question-form').reset();},'問題を投稿しました。ゲームマスターの確認をお待ちください。');});
   $('post-hint-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{await api('submit',{kind:'hint',roundId:$('post-hint-form').dataset.round,sender:$('post-hint-sender').value,mode:$('post-hint-mode').value,slot:Number($('post-hint-target').value),prompt:$('post-hint-prompt').value});$('post-hint-prompt').value='';},'ヒントを投稿しました。承認されると表示されます。');});
+  $('bank-form').addEventListener('submit',event=>{event.preventDefault();work(async()=>{const result=await api('admin/bank',{action:'sample',level:$('bank-level').value,count:Number($('bank-count').value)});bankPreview=result.items;renderBankPreview();},'漢字と読みを確認し、使う問題を追加してください。');});
+  $('bank-add').addEventListener('click',()=>work(async()=>{await api('admin/bank',{action:'add',ids:bankPreview.map(p=>p.id),duration:Number($('bank-duration').value)});bankPreview=[];renderBankPreview();},'問題一覧へ追加しました。「出題」でゲーム画面に表示できます。'));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   refresh(); setInterval(refresh, 1000); setInterval(tick, 200);
 })();

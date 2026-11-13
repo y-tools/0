@@ -19,7 +19,15 @@ Owner ID: `Y`. The initial password is provisioned directly into the private dat
 4. The deadline closes answers and displays TIME UP. 正解を表示 publishes the correct answer and the four latest answers in a 2×2 grid. Correct answers have red panels; incorrect or missing answers have gray panels. Matching uses Unicode NFKC normalization and trims leading/trailing whitespace, then compares exactly. Before reveal, no correctness verdict is sent to players or listeners. Only the game master can see every answer; a player can see their own. Future questions and correct answers are excluded from public state.
 5. Click a screen image, 問題画面, 正解を表示, or 待機画面 to switch the shared display. Image switches preserve an active timer. A new 出題 creates a fresh round. 待機画面 closes any running timer.
 
-## Listener submissions and hints
+## Graded kanji reading bank
+
+The separate SQLite bank contains 12,000 unique written words: 2,000 each for 5/4/3/2/pre-1/1. In 級別の問題データベース choose a level, 1–20 questions and a duration, then ランダム抽出して確認. Check the word/reading preview and add the selection to the active question list. Nothing is presented automatically. Previously added or excluded records are not sampled again. The active game queue retains its 200-question limit; the 12,000-record bank is stored separately and is not included in each public/host state payload.
+
+Bank questions display the word prominently and accept hiragana or equivalent katakana readings. Existing non-bank questions keep their existing answer comparison rules. Correct readings are withheld from public state until reveal. The bank endpoint requires owner/GM authentication. Batch additions are atomic, and duplicate additions are rejected.
+
+Deploy `server/kanji_bank/` with its manifest, source credits and rebuild tools. Run `quiz_server.py import-bank` as the quiz account with the existing QUIZ_DATA before restarting the service. All six 2,000-record counts and hashes are checked before the import transaction; repeated imports preserve exclusions and history. New releases have distinct version IDs. See `kanji_bank/SOURCES.md` for source licences, verification scope and limitations, and `kanji_bank/tools/README.md` for periodic dictionary refresh/rebuild steps.
+
+## Listener submission operation
 
 Both receptions default to closed. In リスナー投稿の受付 the game master can enable question submissions, set a **global total** cap of 1–200 questions for the current reception, and choose hints: off / private only / global only / both. The cap includes pending, approved and rejected posts; reaching it closes public reception automatically. 件数をリセットして問題受付を開始 creates a fresh reception count while retaining pending posts for review. Changing the cap alone does not reset it. Concurrent submissions are serialized by SQLite so the cap cannot be exceeded.
 

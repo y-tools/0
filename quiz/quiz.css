@@ -17,6 +17,21 @@
 .board.revealed .player-answer.answer-medium{font-size:2.3cqw}
 .board.revealed .player-answer.answer-long{font-size:1.6cqw}
 .verdict{position:absolute;top:8%;right:4%;font-size:1.1cqw;font-weight:800;color:#fff;border-radius:99px;padding:.15em .6em;background:#0003}
+.stage h2.kanji-word{font-size:10cqw;letter-spacing:.1em}
+.bank-counts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:20px 0}
+.bank-count-card{display:grid;gap:3px;padding:13px;background:#101b25;border:1px solid var(--line);border-radius:10px;font-size:13px}
+.bank-count-card strong{color:var(--lime);font-size:20px}
+.bank-count-card small{font-size:10px}
+.bank-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:end}
+.bank-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin:20px 0}
+.bank-preview-card{background:#101b25;border:1px solid var(--line);padding:16px;border-radius:12px;display:grid;gap:8px;text-align:center}
+.bank-preview-card h3{font-size:35px;letter-spacing:.05em;margin:0}
+.bank-preview-card p{margin:0;color:var(--lime);font-size:20px}
+.bank-preview-card small{font-size:10px}
+.bank-preview-card button{font-size:11px;margin-top:8px}
+.bank-credit{margin-top:18px}
+.source-details{max-width:70%;font-size:11px;letter-spacing:0}.source-details summary{cursor:pointer;text-align:right}.source-details p{margin:10px 0;line-height:1.7}
+@media(max-width:800px){.bank-counts{grid-template-columns:repeat(3,minmax(0,1fr))}.bank-form{grid-template-columns:1fr 1fr}}
 select{font:inherit;width:100%;min-width:0;background:#101b25;color:var(--ink);border:1px solid #455461;border-radius:8px;padding:10px 12px}
 select:focus{outline:2px solid var(--lime);outline-offset:3px}
 .listener-posts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:25px}

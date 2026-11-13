@@ -25,6 +25,7 @@ spec = importlib.util.spec_from_file_location('quiz_server', HERE / 'server/quiz
 server = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(server)
 server.initialize()
+server.import_bank()
 TEST_PASSWORD = 'local-test-only-8793'
 with server.db(True) as conn:
     conn.execute('INSERT INTO users VALUES(?,?,?,?,?,?,?,?)', ('Y', server.hash_password(TEST_PASSWORD), 'owner', None, 1, None, None, server.now_ms()))
@@ -120,6 +121,46 @@ def run_posts(host, guest):
     settings(opened=False, mode='off')
     print('PASS: reception controls, global question cap including simultaneous posts, reset batches, review-only question publication, hint modes, private isolation, edited hint approval, hide, stale-round rejection')
 
+
+def run_bank(host, guest):
+    summary = request(host, 'host')['bank']
+    assert [x['total'] for x in summary['levels']] == [2000] * 6
+    assert 'bank' not in request(guest)
+    request(guest, 'admin/bank', {'action': 'sample', 'level': '1'}, expected=401)
+    request(host, 'admin/bank', {'action': 'sample', 'level': 'no-such-level'}, expected=400)
+    request(host, 'admin/bank', {'action': 'sample', 'level': '5', 'count': 21}, expected=400)
+    for level in ('5','4','3','2','pre1','1'):
+        result = request(host, 'admin/bank', {'action': 'sample', 'level': level, 'count': 3})
+        assert len(result['items']) == 3 and all(item['level'] == level for item in result['items'])
+    items = request(host, 'admin/bank', {'action':'sample','level':'5','count':3})['items']
+    before = len(request(host, 'host')['questions'])
+    request(host, 'admin/bank', {'action':'add','ids':[items[0]['id'],'missing'],'duration':30}, expected=409)
+    assert len(request(host,'host')['questions']) == before, 'Partial batch must roll back'
+    added = request(host, 'admin/bank', {'action':'add','ids':[items[0]['id']],'duration':1})
+    request(host, 'admin/bank', {'action':'add','ids':[items[0]['id']],'duration':1}, expected=409)
+    request(host, 'admin/bank', {'action':'disable','ids':[items[1]['id']]})
+    server.import_bank()  # Re-import is idempotent and preserves exclusions/history.
+    current = request(host,'host')['bank']['levels'][0]
+    assert current['total'] == 2000 and current['enabled'] == 1999 and current['remaining'] == 1998
+    def action(name, **extra):
+        request(host, 'admin/action', {'action':name,'expectedRevision':request(host,'host')['game']['revision'],**extra})
+    action('present',questionId=added['questionIds'][0])
+    public = request(guest)
+    assert public['question']['bankWord'] == items[0]['word'] and 'correctAnswer' not in public['question']
+    assert items[0]['reading'] not in json.dumps(public,ensure_ascii=False)
+    player = client()
+    request(player,'login',{'id':'browser-player','password':'browser-test-pass'})
+    request(player,'admin/bank',{'action':'sample','level':'5'},expected=403)
+    action('start',duration=1)
+    katakana = ''.join(chr(ord(c)+96) if 'ぁ'<=c<='ゖ' else c for c in items[0]['reading'])
+    request(player,'answer',{'roundId':public['game']['roundId'],'answer':katakana})
+    time.sleep(1.1)
+    request(guest)
+    action('reveal')
+    assert request(guest)['players'][0]['correct'] is True
+    action('lobby')
+    print('PASS: 12000 stored records, 2000/level, six random filters, authorization, atomic add, duplicate prevention, exclusion and re-import persistence, hidden reading until reveal, kana reading normalization')
+
 def run():
     host, guest = client(), client()
     for _ in range(50):
@@ -207,6 +248,7 @@ def run():
     # Keep a separate clean fixture for the browser smoke check.
     request(host, 'admin/player', {'slot': 1, 'id': 'browser-player', 'password': 'browser-test-pass'})
     run_posts(host, guest)
+    run_bank(host, guest)
     print('PASS: 4 players, overwrites, deadline, hidden answers, reveal, images, avatars, roles, delegation expiry/revoke, session revocation, stale rounds, CSRF')
     print('FIXTURE=' + str(TEMP))
 

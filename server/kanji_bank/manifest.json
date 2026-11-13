@@ -1,0 +1,201 @@
+{
+  "version": "2026-11-13-431f640608",
+  "dictionaryDate": "2026-11-13",
+  "total": 12000,
+  "perLevel": 2000,
+  "files": [
+    {
+      "file": "level-5-1.json",
+      "level": "5",
+      "count": 500,
+      "sha256": "16d547bdbbc3b909f10f04807084dc5436655695d48cd8424dc84adee2b6f87e"
+    },
+    {
+      "file": "level-5-2.json",
+      "level": "5",
+      "count": 500,
+      "sha256": "38f844b0b6b1ec4581fb0b4889a0d65e7a87bf12a11ed531bacc895b86fb06c4"
+    },
+    {
+      "file": "level-5-3.json",
+      "level": "5",
+      "count": 500,
+      "sha256": "fc49ca610d4c9c149f24b5489978d6d25ce5497822c037848b246fa1177d31e8"
+    },
+    {
+      "file": "level-5-4.json",
+      "level": "5",
+      "count": 500,
+      "sha256": "a9c1849bd7db64bc827fa21209c23a4147df437f9c27e5d66b77e660fcf29e06"
+    },
+    {
+      "file": "level-4-1.json",
+      "level": "4",
+      "count": 500,
+      "sha256": "ed4282b4653060c1e0aa6f2b6e9611c51a118f7f141db98d5c565f491531e55f"
+    },
+    {
+      "file": "level-4-2.json",
+      "level": "4",
+      "count": 500,
+      "sha256": "8529be4ef3a64da2a13def7b4ea7b7721f2e16dd82164c7c9ad9ed07cc57bc86"
+    },
+    {
+      "file": "level-4-3.json",
+      "level": "4",
+      "count": 500,
+      "sha256": "b1aa59a3685bb31c20427602309916db79fd02ab57d98076a4397ee6a5553871"
+    },
+    {
+      "file": "level-4-4.json",
+      "level": "4",
+      "count": 500,
+      "sha256": "1555986603b128ff30f878ef9f5ebb088a44eafa40eedb4609928977f1a3c974"
+    },
+    {
+      "file": "level-3-1.json",
+      "level": "3",
+      "count": 500,
+      "sha256": "879fe8d3af4ce918ec356737a51d9178243da6c7a754bba8b905c77ccae334ed"
+    },
+    {
+      "file": "level-3-2.json",
+      "level": "3",
+      "count": 500,
+      "sha256": "eb39bcbfb71d78249812d19f1dbe99484719e204143856691f5f4d97c9e75ac5"
+    },
+    {
+      "file": "level-3-3.json",
+      "level": "3",
+      "count": 500,
+      "sha256": "da159ec714f8beb2c40776839048e621ae0cf177c39fd7242a941ba32f2e6163"
+    },
+    {
+      "file": "level-3-4.json",
+      "level": "3",
+      "count": 500,
+      "sha256": "c6541fdbe3aee2cb90be02d7a9514c17da5af0e05dba7bf298aecf3cd21c25a0"
+    },
+    {
+      "file": "level-2-1.json",
+      "level": "2",
+      "count": 500,
+      "sha256": "5f13d4957732e2bdec1d349368f63450f05fdd97748745413c9ff6405ad0d423"
+    },
+    {
+      "file": "level-2-2.json",
+      "level": "2",
+      "count": 500,
+      "sha256": "e4e12c86d28285056527d42553fec048d1201333b939f6c308ce9131155bf991"
+    },
+    {
+      "file": "level-2-3.json",
+      "level": "2",
+      "count": 500,
+      "sha256": "4e604e8acf7fe442aa75c0ae1b83d09063ffe3fedf2ab4d0306781a5582fe0f2"
+    },
+    {
+      "file": "level-2-4.json",
+      "level": "2",
+      "count": 500,
+      "sha256": "c3cf329f7767ce5011060087c48fd57efdba21f020c9e709deaeeeac668e0494"
+    },
+    {
+      "file": "level-pre1-1.json",
+      "level": "pre1",
+      "count": 500,
+      "sha256": "9838dfe2a20a39a49e6fef2f9c2c7d2e6a7ff58449841e302d1731f43bdd3f3b"
+    },
+    {
+      "file": "level-pre1-2.json",
+      "level": "pre1",
+      "count": 500,
+      "sha256": "ca65259b56a9a43adbc121ef8e14ee4ba3b73ffdb0cbe08a03806d47b22abd5d"
+    },
+    {
+      "file": "level-pre1-3.json",
+      "level": "pre1",
+      "count": 500,
+      "sha256": "9bd10545f2c66818c73385ee4deec97db5222e55ce03d457f43a071ff108b81f"
+    },
+    {
+      "file": "level-pre1-4.json",
+      "level": "pre1",
+      "count": 500,
+      "sha256": "63ab429c367faa4ef594c588330d9018705dafeb16967bcd5683e57e1e8f99a3"
+    },
+    {
+      "file": "level-1-1.json",
+      "level": "1",
+      "count": 500,
+      "sha256": "52ae76f298c4038d026017a2d4ef45a539cad7b6d821752fba77c16b286b471e"
+    },
+    {
+      "file": "level-1-2.json",
+      "level": "1",
+      "count": 500,
+      "sha256": "714d9709705a4ef9cb1a9baac870e9c3a0cf822becd61d88bd71bbd5f4399e47"
+    },
+    {
+      "file": "level-1-3.json",
+      "level": "1",
+      "count": 500,
+      "sha256": "7fa5d9829dad6f50a6bb7878da5e492e82d35bc64dfb47ea266b8ec90dd00537"
+    },
+    {
+      "file": "level-1-4.json",
+      "level": "1",
+      "count": 500,
+      "sha256": "82ef8ceb931712ab9198127fa18bbad9e4b8e47de8643e386426d990bfd84cc9"
+    }
+  ],
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "attribution": "Reading data: JMdict and KANJIDIC2, Electronic Dictionary Research and Development Group (EDRDG). Character-level mapping: mimneko/kanji-data (CC0). Selection and validation are adaptations by Y++STADIO.",
+  "sources": [
+    {
+      "file": "JMdict_e.gz",
+      "url": "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz",
+      "sha256": "d13440146d86229123643e0b9fd2bb3e3052bfbe5012fe1982fe21a3c23a4c8d",
+      "bytes": 10597330
+    },
+    {
+      "file": "kanjidic2.xml.gz",
+      "url": "http://ftp.edrdg.org/pub/Nihongo/kanjidic2.xml.gz",
+      "sha256": "8a308895abbb852c9e23ce44c74a4b59a910310be4f46a086f604eff9b2c7c08",
+      "bytes": 1488576
+    },
+    {
+      "file": "levels.csv",
+      "url": "https://raw.githubusercontent.com/mimneko/kanji-data/main/%E6%BC%A2%E6%A4%9C%E6%BC%A2%E5%AD%97%E8%BE%9E%E5%85%B8%E6%BC%A2%E5%AD%97.csv",
+      "sha256": "e3a3bade7bb738f6e25d2ff14ea4118ed3b18d9cd32f49dd6a90f5eb6d8ef84f",
+      "bytes": 647962
+    },
+    {
+      "file": "joyo.json",
+      "url": "https://raw.githubusercontent.com/mimneko/kanji-data/main/%E5%B8%B8%E7%94%A8%E6%BC%A2%E5%AD%97%E8%A1%A8%E6%9C%AC%E8%A1%A8.json",
+      "sha256": "e804e3fb166e2d4289c438c45a6aab13c3710da9e2eda3f7bf97ebe046d0c2a2",
+      "bytes": 1442540
+    },
+    {
+      "file": "official-levels.pdf",
+      "url": "https://www.kanken.or.jp/kanken/outline/data/outline_degree_national_list20200217.pdf",
+      "sha256": "8c7513a4ecfc7d6ca2b8f8aa71313b9097e972bac7a43f8a568fe99a9a1d7285",
+      "bytes": 1615642
+    },
+    {
+      "file": "cc0.txt",
+      "url": "https://raw.githubusercontent.com/mimneko/kanji-data/main/LICENSE",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "bytes": 7048
+    }
+  ],
+  "classification": "Independent reading exercises classified by the highest allocated character level; not official exam questions or official vocabulary difficulty ratings.",
+  "validation": [
+    "Single unambiguous JMdict reading per written form; reading/spelling restrictions honored",
+    "Rare/obsolete/irregular spellings and archaic/slang/offensive senses excluded",
+    "Every reading matched to constituent character readings; 2–5 levels use standard Joyo readings; upper levels use KANJIDIC2",
+    "Exact 2000 distinct words per level; 12000 distinct written forms overall; SHA256 integrity for every data file"
+  ],
+  "limitations": "Dictionary and rule cross-checks do not constitute a human proofread of every question or a guarantee that no dictionary error exists. Game master must confirm before presenting."
+}

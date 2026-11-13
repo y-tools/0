@@ -8,6 +8,7 @@ import json
 import mimetypes
 import os
 import pathlib
+import re
 import secrets
 import sqlite3
 import sys
@@ -129,6 +130,16 @@ def initialize():
         );
         CREATE INDEX IF NOT EXISTS submissions_round ON submissions(round_id,kind,visible);
         CREATE TABLE IF NOT EXISTS post_limits (ip_hash TEXT NOT NULL, at_ms INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS bank_items (
+          id TEXT PRIMARY KEY, level TEXT NOT NULL, word TEXT UNIQUE NOT NULL,
+          reading TEXT NOT NULL, entry_id TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, release TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS bank_level ON bank_items(level,enabled);
+        CREATE TABLE IF NOT EXISTS question_bank_links (
+          question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+          bank_id TEXT UNIQUE NOT NULL REFERENCES bank_items(id)
+        );
+        CREATE TABLE IF NOT EXISTS bank_meta (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);
         ''')
         initial = {'revision': 0, 'phase': 'lobby', 'screen': 'lobby', 'questionId': None,
                    'roundId': None, 'deadlineMs': None, 'duration': 30, 'mediaId': None}
@@ -172,6 +183,91 @@ def question_dict(row):
     return {'id': row['id'], 'label': row['label'], 'prompt': row['prompt'],
             'correctAnswer': row['correct_answer'], 'duration': row['duration'],
             'imageIds': json.loads(row['image_ids'])}
+
+
+BANK_LEVELS = {'5': '5級', '4': '4級', '3': '3級', '2': '2級', 'pre1': '準1級', '1': '1級'}
+
+
+def import_bank():
+    directory = pathlib.Path(__file__).parent / 'kanji_bank'
+    manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+    records, counts, words = [], {level: 0 for level in BANK_LEVELS}, set()
+    for item in manifest['files']:
+        name, level = item['file'], item['level']
+        if not re.fullmatch(r'level-(5|4|3|2|pre1|1)-[1-4]\.json', name) or level not in BANK_LEVELS:
+            raise ValueError('Invalid bank manifest')
+        content = (directory / name).read_bytes()
+        if hashlib.sha256(content).hexdigest() != item['sha256']:
+            raise ValueError('Bank integrity check failed: ' + name)
+        rows = json.loads(content)
+        if len(rows) != item['count']:
+            raise ValueError('Bank file count mismatch')
+        for word, reading, entry in rows:
+            if not re.fullmatch(r'[一-龯]{2,4}', word) or not re.fullmatch(r'[ぁ-ゖー]{2,16}', reading) or not re.fullmatch(r'\d+', entry) or word in words:
+                raise ValueError('Invalid or duplicate bank record')
+            words.add(word)
+            counts[level] += 1
+            bid = hashlib.sha256(word.encode()).hexdigest()[:24]
+            records.append((bid, level, word, reading, entry, manifest['version']))
+    if len(records) != 12000 or any(count != 2000 for count in counts.values()):
+        raise ValueError('Expected exactly 2000 distinct questions per level')
+    with db(True) as connection:
+        connection.executemany('INSERT INTO bank_items(id,level,word,reading,entry_id,release) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level=excluded.level,word=excluded.word,reading=excluded.reading,entry_id=excluded.entry_id,release=excluded.release', records)
+        connection.execute('INSERT INTO bank_meta VALUES(1,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data', (json.dumps({'version': manifest['version'], 'total': len(records), 'dictionaryDate': manifest.get('dictionaryDate'), 'license': manifest['license']}),))
+    return counts
+
+
+def bank_summary(connection):
+    meta = connection.execute('SELECT data FROM bank_meta WHERE id=1').fetchone()
+    version = json.loads(meta['data'])['version'] if meta else ''
+    summary = []
+    for level, label in BANK_LEVELS.items():
+        count = connection.execute('SELECT COUNT(*),COALESCE(SUM(enabled),0) FROM bank_items WHERE level=? AND release=?', (level,version)).fetchone()
+        remaining = connection.execute('SELECT COUNT(*) FROM bank_items b WHERE level=? AND release=? AND enabled=1 AND NOT EXISTS(SELECT 1 FROM question_bank_links l WHERE l.bank_id=b.id)', (level,version)).fetchone()[0]
+        summary.append({'level': level, 'label': label, 'total': count[0], 'enabled': count[1], 'remaining': remaining})
+    return {'levels': summary, 'meta': json.loads(meta['data']) if meta else None}
+
+
+def bank_action(connection, data):
+    action = data.get('action')
+    meta = connection.execute('SELECT data FROM bank_meta WHERE id=1').fetchone()
+    if not meta:
+        raise Error(409, '問題データベースが準備されていません。')
+    version = json.loads(meta['data'])['version']
+    if action == 'sample':
+        level = data.get('level')
+        if level not in BANK_LEVELS:
+            raise Error(400, '級を選択してください。')
+        count = integer(data.get('count', 1), 1, 20, '追加する問題数')
+        rows = connection.execute('SELECT b.* FROM bank_items b WHERE level=? AND release=? AND enabled=1 AND NOT EXISTS(SELECT 1 FROM question_bank_links l WHERE l.bank_id=b.id) ORDER BY RANDOM() LIMIT ?', (level,version,count)).fetchall()
+        if len(rows) < count:
+            raise Error(409, '未使用の問題が足りません。別の級か少ない問題数を選んでください。')
+        return {'items': [dict(r) for r in rows]}
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 20 or any(not isinstance(bid, str) for bid in ids) or len(set(ids)) != len(ids):
+        raise Error(400, '確認する問題を選び直してください。')
+    if action == 'disable':
+        connection.executemany('UPDATE bank_items SET enabled=0 WHERE id=?', [(bid,) for bid in ids])
+        return {'ok': True}
+    if action != 'add':
+        raise Error(400, '問題データベースの操作を確認してください。')
+    if connection.execute('SELECT COUNT(*) FROM questions').fetchone()[0] + len(ids) > 200:
+        raise Error(409, '進行用の問題一覧は200問までです。追加数を減らしてください。')
+    duration = integer(data.get('duration', 30), 1, 3600, 'タイマー秒数')
+    added = []
+    for bid in ids:
+        item = connection.execute('SELECT * FROM bank_items WHERE id=? AND release=? AND enabled=1', (bid,version)).fetchone()
+        if item is None or connection.execute('SELECT 1 FROM question_bank_links WHERE bank_id=?', (bid,)).fetchone():
+            raise Error(409, 'すでに追加・除外された問題があります。選び直してください。')
+        result = save_question(connection, {'label': BANK_LEVELS[item['level']] + ' 読み：' + item['word'], 'prompt': item['word'], 'correctAnswer': item['reading'], 'duration': duration})
+        connection.execute('INSERT INTO question_bank_links VALUES(?,?)', (result['id'], bid))
+        added.append(result['id'])
+    return {'ok': True, 'questionIds': added}
+
+
+def reading_form(value):
+    value = unicodedata.normalize('NFKC', value).strip()
+    return ''.join(chr(ord(c) - 96) if 'ァ' <= c <= 'ヶ' else c for c in value)
 
 
 def intake_state(connection):
@@ -307,10 +403,14 @@ def review_post(connection, data):
 
 def public_state(connection, me=None, host=False):
     game = game_state(connection)
-    active = None
+    active, bank_question = None, False
     if game['questionId'] and game['phase'] != 'lobby':
         row = question_row(connection, game['questionId'])
         active = {'label': row['label'], 'prompt': row['prompt']}
+        bank = connection.execute('SELECT b.word,b.reading FROM bank_items b JOIN question_bank_links l ON l.bank_id=b.id WHERE l.question_id=?', (row['id'],)).fetchone()
+        bank_question = bool(bank and bank['word'] == row['prompt'] and bank['reading'] == row['correct_answer'])
+        if bank_question:
+            active['bankWord'] = bank['word']
         if game['phase'] == 'answer' and game['screen'] == 'answer':
             active['correctAnswer'] = row['correct_answer']
     answers = {r['slot']: r for r in connection.execute('SELECT * FROM answers WHERE round_id=?', (game['roundId'],))}
@@ -327,7 +427,7 @@ def public_state(connection, me=None, host=False):
             player['answer'] = answer['answer']
             player['updatedMs'] = answer['updated_ms']
         if reveal and user:
-            player['correct'] = bool(answer and unicodedata.normalize('NFKC', answer['answer']).strip() == correct_answer)
+            player['correct'] = bool(answer and (reading_form(answer['answer']) == reading_form(correct_answer) if bank_question else unicodedata.normalize('NFKC', answer['answer']).strip() == correct_answer))
         players.append(player)
     public_game = {key: game[key] for key in ['revision', 'phase', 'screen', 'roundId', 'deadlineMs', 'duration']}
     public_game['image'] = media_url(connection, game['mediaId'], 'screen') if game['screen'] == 'image' else None
@@ -344,6 +444,7 @@ def public_state(connection, me=None, host=False):
             hint = connection.execute("SELECT prompt FROM submissions WHERE kind='hint' AND mode='private' AND visible=1 AND round_id=? AND slot=? AND target_id=? ORDER BY created_ms DESC LIMIT 1", (game['roundId'], me['slot'], me['id'])).fetchone()
             result['privateHint'] = hint['prompt'] if hint else None
     if host:
+        result['bank'] = bank_summary(connection)
         result['game']['questionId'] = game['questionId']
         result['questions'] = [question_dict(r) for r in connection.execute('SELECT * FROM questions ORDER BY created_ms,id')]
         result['media'] = [{'id': r['id'], 'label': r['label'], 'url': media_url(connection, r['id'])}
@@ -614,6 +715,8 @@ class Handler(BaseHTTPRequestHandler):
                         result = save_intake(connection, data)
                     elif path.endswith('/review'):
                         result = review_post(connection, data)
+                    elif path.endswith('/bank'):
+                        result = bank_action(connection, data)
                     elif path.endswith('/action'):
                         result = host_action(connection, data)
                     elif path.endswith('/delegate'):
@@ -651,6 +754,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     initialize()
+    if len(sys.argv) > 1 and sys.argv[1] == 'import-bank':
+        print(json.dumps(import_bank()))
+        return
     if len(sys.argv) > 1 and sys.argv[1] == 'init-owner-hash':
         record = json.load(sys.stdin)
         if record.get('id') != 'Y' or not valid_hash(record.get('hash')):

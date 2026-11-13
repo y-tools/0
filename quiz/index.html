@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101822">
   <title>みんなで漢字 | Y++STADIO</title>
-  <link rel="stylesheet" href="./quiz.css?v=20261113-3">
-  <script src="./quiz.js?v=20261113-3" defer></script>
+  <link rel="stylesheet" href="./quiz.css?v=20261113-4">
+  <script src="./quiz.js?v=20261113-4" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -57,6 +57,7 @@
         <div id="host-answers" class="host-answers"></div>
       </section>
       <div class="host-grid">
+        <section class="panel wide"><div class="section-head"><h2>級別の問題データベース</h2><span id="bank-version" class="pill"></span></div><p class="muted">配当漢字を基準にした独自の読み問題です。公式過去問ではありません。辞書照合済みの候補を抽出し、漢字と読みを確認してから追加してください。</p><div id="bank-counts" class="bank-counts"></div><form id="bank-form" class="bank-form"><label>級<select id="bank-level"><option value="5">5級</option><option value="4">4級</option><option value="3">3級</option><option value="2">2級</option><option value="pre1">準1級</option><option value="1">1級</option></select></label><label>問題数<input id="bank-count" type="number" min="1" max="20" value="1" required></label><label>制限時間（秒）<input id="bank-duration" type="number" min="1" max="3600" value="30" required></label><button type="submit">ランダム抽出して確認</button></form><div id="bank-preview" class="bank-preview"></div><button id="bank-add" hidden>確認した問題を一覧へ追加</button><p class="muted bank-credit">読みの出典：<a href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project" target="_blank" rel="noopener noreferrer">JMdict</a> / <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noopener noreferrer">KANJIDIC2</a>（EDRDG）、級分類：mimneko/kanji-data。<a href="https://github.com/y-tools/0/blob/main/server/kanji_bank/SOURCES.md" target="_blank" rel="noopener noreferrer">出典・検証方法・ライセンス</a></p></section>
         <section class="panel wide"><div class="section-head"><h2>リスナー投稿の受付</h2><span id="intake-count" class="pill"></span></div>
           <form id="intake-form" class="intake-form"><label class="checkbox-label"><input id="intake-question-open" type="checkbox">問題投稿を受け付ける</label><label>問題受付上限（合計）<input id="intake-question-limit" type="number" min="1" max="200" value="10" required></label><label>ヒント受付<select id="intake-hint-mode"><option value="off">受付停止</option><option value="private">個別ヒントのみ</option><option value="global">全体ヒントのみ</option><option value="both">個別・全体の両方</option></select></label><button type="submit">受付設定を保存</button></form>
           <p class="muted intake-description">問題は受付ごとの合計件数で制限します。上限に達すると自動で受付停止します。確認済み・不採用の投稿も件数に含みます。</p><button id="intake-reset" class="secondary">件数をリセットして問題受付を開始</button>
@@ -72,7 +73,7 @@
         <section id="delegation-panel" class="panel wide" hidden><h2>ゲームマスターを一時的に委任</h2><p class="muted">委任された人は進行・問題・回答者を管理できます。期限が来ると自動的にログインできなくなります。</p><form id="delegate-form" class="delegate-form"><label>委任ID<input id="delegate-id" maxlength="40" required autocomplete="off"></label><label>パスワード<input id="delegate-password" minlength="6" maxlength="128" autocomplete="new-password" placeholder="空欄で自動生成"></label><label>有効時間（時間）<input id="delegate-hours" type="number" min="1" max="168" value="24" required></label><button type="submit">委任IDを発行</button></form><output id="delegate-result" class="credential-result"></output><div id="delegate-list"></div></section>
       </div>
     </section>
-    <footer>Y++STADIO <span>みんなで、ひとつの答えへ。</span></footer>
+    <footer>Y++STADIO <details class="source-details"><summary>問題データの出典</summary><p>読みデータ：JMdict / KANJIDIC2（Electronic Dictionary Research and Development Group）。<a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noopener noreferrer">EDRDGの利用条件</a>・<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>。級分類：mimneko/kanji-data（CC0）。本ゲームの問題データはこれらを抽出・照合・加工したものです。<a href="https://github.com/y-tools/0/blob/main/server/kanji_bank/SOURCES.md" target="_blank" rel="noopener noreferrer">出典と検証方法の詳細</a></p></details></footer>
   </main>
 </body>
 </html>
