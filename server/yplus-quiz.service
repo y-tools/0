@@ -1,0 +1,29 @@
+[Unit]
+Description=Y++STADIO independent quiz
+After=network.target
+
+[Service]
+Type=simple
+User=yplus-quiz
+Group=yplus-quiz
+WorkingDirectory=/opt/yplus-quiz
+Environment=QUIZ_DATA=/var/lib/yplus-quiz
+Environment=QUIZ_STATIC=/opt/yplus-quiz/quiz
+Environment=QUIZ_PORT=8793
+Environment=QUIZ_ORIGIN=https://153-127-64-17.sslip.io
+Environment=QUIZ_SECURE_COOKIE=1
+ExecStart=/opt/yplus-quiz/venv/bin/python /opt/yplus-quiz/server/quiz_server.py
+Restart=on-failure
+RestartSec=3
+StateDirectory=yplus-quiz
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yplus-quiz
+RestrictAddressFamilies=AF_INET AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

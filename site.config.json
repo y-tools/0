@@ -25,6 +25,14 @@
       "status": "soon"
     },
     {
+      "id": "quiz",
+      "title": "みんなでクイズ",
+      "subtitle": "4人でクイズに挑戦",
+      "icon": "grid",
+      "href": "https://153-127-64-17.sslip.io/quiz/",
+      "status": "ready"
+    },
+    {
       "id": "timer",
       "title": "タイマー",
       "subtitle": "カウントダウン統合",
